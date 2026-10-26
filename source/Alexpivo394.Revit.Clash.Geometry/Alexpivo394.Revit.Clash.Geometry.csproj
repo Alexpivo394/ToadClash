@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>net48;net8.0</TargetFrameworks>
+        <RootNamespace>Alexpivo394.Revit.Clash.Geometry</RootNamespace>
+        <IsPackable>true</IsPackable>
+        <PackageId>Alexpivo394.Revit.Clash.Geometry</PackageId>
+        <Description>Clash detection geometry format: tessellated element meshes in millimetres, binary read and write.</Description>
+        <PackageTags>revit;autodesk;clash;geometry</PackageTags>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Polyfill" PrivateAssets="all"/>
+        <PackageReference Include="System.IO.Hashing"/>
+        <PackageReference Include="System.Numerics.Vectors" Condition="'$(TargetFramework)' == 'net48'"/>
+    </ItemGroup>
+
+</Project>

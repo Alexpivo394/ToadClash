@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <OutputType>Exe</OutputType>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="TUnit"/>
+        <PackageReference Include="Shouldly"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\source\Alexpivo394.Revit.Clash.Geometry\Alexpivo394.Revit.Clash.Geometry.csproj"/>
+        <ProjectReference Include="..\..\source\Alexpivo394.Revit.Clash.Rules\Alexpivo394.Revit.Clash.Rules.csproj"/>
+        <ProjectReference Include="..\..\source\Alexpivo394.Revit.Clash.Engine\Alexpivo394.Revit.Clash.Engine.csproj"/>
+    </ItemGroup>
+
+</Project>

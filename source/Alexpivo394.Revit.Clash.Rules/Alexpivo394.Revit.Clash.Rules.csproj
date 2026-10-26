@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>net48;net8.0</TargetFrameworks>
+        <RootNamespace>Alexpivo394.Revit.Clash.Rules</RootNamespace>
+        <IsPackable>true</IsPackable>
+        <PackageId>Alexpivo394.Revit.Clash.Rules</PackageId>
+        <Description>Clash detection rules: selection sets, matrix of checks and tolerances.</Description>
+        <PackageTags>revit;autodesk;clash;rules</PackageTags>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Polyfill" PrivateAssets="all"/>
+        <PackageReference Include="System.Text.Json"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Alexpivo394.Revit.Clash.Geometry\Alexpivo394.Revit.Clash.Geometry.csproj"/>
+    </ItemGroup>
+
+</Project>

@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+    <File Path="Readme.md" />
+  </Folder>
+  <Folder Name="/source/">
+    <Project Path="source/Alexpivo394.Revit.Clash.Engine/Alexpivo394.Revit.Clash.Engine.csproj" />
+    <Project Path="source/Alexpivo394.Revit.Clash.Geometry/Alexpivo394.Revit.Clash.Geometry.csproj" />
+    <Project Path="source/Alexpivo394.Revit.Clash.Rules/Alexpivo394.Revit.Clash.Rules.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Alexpivo394.Revit.Clash.Tests/Alexpivo394.Revit.Clash.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <RootNamespace>Alexpivo394.Revit.Clash.Engine</RootNamespace>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <IsPackable>true</IsPackable>
+        <PackageId>Alexpivo394.Revit.Clash.Engine</PackageId>
+        <Description>Clash detection engine: mesh intersection search by rules, without the Revit API.</Description>
+        <PackageTags>revit;autodesk;clash;engine</PackageTags>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Alexpivo394.Revit.Clash.Tests"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Alexpivo394.Revit.Clash.Geometry\Alexpivo394.Revit.Clash.Geometry.csproj"/>
+        <ProjectReference Include="..\Alexpivo394.Revit.Clash.Rules\Alexpivo394.Revit.Clash.Rules.csproj"/>
+    </ItemGroup>
+
+</Project>
