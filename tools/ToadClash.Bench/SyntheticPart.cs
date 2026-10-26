@@ -12,6 +12,16 @@ namespace ToadClash.Bench;
 ///     Инженерные сети - цепочки "участок - фитинг - участок", соединённые через ConnectedUniqueIds.
 ///     Результат целиком определяется числом элементов, числом моделей и seed.
 /// </summary>
+/// <summary>Профиль синтетической части: обычный (аккуратные трассы по полосам) или плотный (трассы в общем потолочном пространстве, диагональные и наклонные, стояки пучками, много коллизий).</summary>
+public enum SyntheticProfile
+{
+    /// <summary>Аккуратные трассы по полосам, отдельные слои по высоте.</summary>
+    Standard,
+
+    /// <summary>Общее потолочное пространство, диагональные и наклонные трассы, пучки стояков.</summary>
+    Dense
+}
+
 public static class SyntheticPart
 {
     private const float FloorHeight = 3600;
@@ -27,6 +37,15 @@ public static class SyntheticPart
     private const double ShallowShare = 0.06;
 
     private const double DeepShare = 0.008;
+
+    private const double DenseCarelessShare = 0.005;
+    private const double DenseDeepShare = 0.01;
+
+    /// <summary>Плотный профиль: доли цепочек с диагональной и наклонной трассой, доля элементов в пучках стояков.</summary>
+    private const double DiagonalShare = 0.27;
+
+    private const double SlopedShare = 0.08;
+    private const int RiserPercent = 8;
 
     /// <summary>Отступ цепочек от краёв полосы и друг от друга, мм.</summary>
     private const float BandMargin = 40;
@@ -56,12 +75,12 @@ public static class SyntheticPart
 
     /// <summary>Строит все модели части и держит их в памяти. Для больших частей используйте <see cref="Enumerate"/>.</summary>
     public static IReadOnlyList<(ModelGeometry Geometry, ModelParameters Parameters, string Discipline)> Generate(
-        int elements, int models, int seed) =>
-        Enumerate(elements, models, seed).ToList();
+        int elements, int models, int seed, SyntheticProfile profile = SyntheticProfile.Standard) =>
+        Enumerate(elements, models, seed, profile).ToList();
 
     /// <summary>Строит модели по одной, чтобы вызывающий мог записать модель и освободить память.</summary>
     public static IEnumerable<(ModelGeometry Geometry, ModelParameters Parameters, string Discipline)> Enumerate(
-        int elements, int models, int seed)
+        int elements, int models, int seed, SyntheticProfile profile = SyntheticProfile.Standard)
     {
         if (elements <= 0) throw new ArgumentOutOfRangeException(nameof(elements));
         if (models <= 0) throw new ArgumentOutOfRangeException(nameof(models));
@@ -79,7 +98,7 @@ public static class SyntheticPart
             {
                 case "КР": BuildStructure(builder, rng); break;
                 case "АР": BuildArchitecture(builder, rng); break;
-                default: BuildMep(builder, rng, sameTotal, sameBefore); break;
+                default: BuildMep(builder, rng, sameTotal, sameBefore, profile == SyntheticProfile.Dense); break;
             }
 
             yield return builder.Finish();
@@ -315,9 +334,12 @@ public static class SyntheticPart
         }
     }
 
-    private static void BuildMep(ModelBuilder b, Random rng, int sameTotal, int sameBefore)
+    private static void BuildMep(ModelBuilder b, Random rng, int sameTotal, int sameBefore, bool dense)
     {
         var (kind, bandZ) = LayerOf(b.Discipline);
+        var carelessShare = dense ? DenseCarelessShare : CarelessShare;
+        var deepShare = dense ? DenseDeepShare : DeepShare;
+        if (dense) BuildRisers(b, kind, rng);
         var bands = new List<Band>();
         for (var row = 0; row < 10; row++)
         {
@@ -325,7 +347,7 @@ public static class SyntheticPart
             for (var f = 0; f < Floors; f++)
             for (var bay = 0; bay < 9; bay++)
             foreach (var (lo, hi) in Bands)
-                bands.Add(new Band(f, bay, row * Grid + lo + BandMargin, row * Grid + hi - BandMargin));
+                bands.Add(new Band(f, bay, row * Grid + lo + BandMargin + (dense ? (float)rng.NextDouble() * 400 : 0), row * Grid + hi - BandMargin));
         }
 
         while (b.Remaining > 0)
@@ -333,7 +355,18 @@ public static class SyntheticPart
             var spec = RandomSpec(kind, rng);
             var roll = rng.NextDouble();
             var width = 2 * spec.HalfWidth;
-            if (roll < CarelessShare || bands.Count == 0)
+            if (dense)
+            {
+                var style = rng.NextDouble();
+                if (style < DiagonalShare + SlopedShare)
+                {
+                    var free = FreePath(spec, rng, style < DiagonalShare, out var freeFloor);
+                    BuildChain(b, spec, free, LevelName(freeFloor), rng);
+                    continue;
+                }
+            }
+
+            if (roll < carelessShare || bands.Count == 0)
             {
                 var careless = CarelessPath(spec, rng, out var floor);
                 BuildChain(b, spec, careless, LevelName(floor), rng);
@@ -350,9 +383,10 @@ public static class SyntheticPart
             }
 
             var z = band.Floor * FloorHeight + bandZ;
-            if (roll < CarelessShare + ShallowShare + DeepShare)
+            if (dense) z = band.Floor * FloorHeight + 2100 + spec.HalfHeight + (float)rng.NextDouble() * (1200 - 2 * spec.HalfHeight);
+            if (roll < carelessShare + ShallowShare + deepShare)
             {
-                var depth = roll < CarelessShare + ShallowShare
+                var depth = roll < carelessShare + ShallowShare
                     ? 3 + (float)rng.NextDouble() * 13
                     : 25 + (float)rng.NextDouble() * 95;
                 z = (band.Floor + 1) * FloorHeight - SlabThickness + depth - spec.HalfHeight;
@@ -399,6 +433,60 @@ public static class SyntheticPart
 
         path.Add(V(xEnd, y, z));
         return path;
+    }
+
+    /// <summary>Центры шахт в плане, мм: пучки стояков всех разделов идут через них.</summary>
+    private static readonly (float X, float Y)[] Shafts =
+    [
+        (4500, 4500), (4500, 28500), (4500, 52500), (16500, 16500), (16500, 40500), (28500, 4500),
+        (28500, 28500), (28500, 52500), (40500, 16500), (40500, 40500), (52500, 4500), (52500, 28500)
+    ];
+
+    /// <summary>Пучки вертикальных стояков в шахтах: разделы делят шахты, ячейки сетки сдвинуты по индексу модели.</summary>
+    private static void BuildRisers(ModelBuilder b, MepKind kind, Random rng)
+    {
+        var budget = b.Target * RiserPercent / 100;
+        var pitch = kind == MepKind.Pipe ? 260f : 700f;
+        var cols = kind == MepKind.Pipe ? 9 : 4;
+        var shift = b.Index % 12 * 20 - 100;
+        for (var counter = 0; budget > 0 && b.Remaining > 0; counter++)
+        {
+            var slot = counter / Shafts.Length;
+            if (slot >= cols * cols) break;
+
+            var (sx, sy) = Shafts[counter % Shafts.Length];
+            var x = sx + (slot % cols - (cols - 1) / 2f) * pitch + shift;
+            var y = sy + (slot / cols - (cols - 1) / 2f) * pitch + shift;
+            var from = rng.Next(4);
+            var to = 6 + rng.Next(4);
+            var before = b.Remaining;
+            BuildChain(b, RandomSpec(kind, rng), [V(x, y, from * FloorHeight + 100), V(x, y, (to + 1) * FloorHeight - 100)],
+                LevelName(from), rng);
+            budget -= before - b.Remaining;
+        }
+    }
+
+    /// <summary>Свободная трасса: диагональная в плане или наклонная по высоте, из одного участка.</summary>
+    private static List<Vector3> FreePath(MepSpec spec, Random rng, bool diagonal, out int floor)
+    {
+        floor = rng.Next(Floors);
+        var angle = diagonal ? rng.NextDouble() * Math.PI : rng.Next(2) * Math.PI / 2;
+        var length = 1800 + (float)rng.NextDouble() * 2000;
+        var dx = length * (float)Math.Cos(angle);
+        var dy = length * (float)Math.Sin(angle);
+        var x = 1500 + (float)rng.NextDouble() * 57000;
+        var y = 1500 + (float)rng.NextDouble() * 57000;
+        if (x + dx is < 1000 or > 59000) dx = -dx;
+        if (y + dy is < 1000 or > 59000) dy = -dy;
+        var z = floor * FloorHeight + 2100 + spec.HalfHeight + (float)rng.NextDouble() * (1200 - 2 * spec.HalfHeight);
+        var dz = 0f;
+        if (!diagonal)
+        {
+            dz = length * (0.03f + (float)rng.NextDouble() * 0.03f);
+            if (z - floor * FloorHeight > 2700) dz = -dz;
+        }
+
+        return [V(x, y, z), V(x + dx, y + dy, z + dz)];
     }
 
     /// <summary>Цепочка где попало: длинный горизонтальный участок, для труб ещё стояк через перекрытие.</summary>
@@ -565,6 +653,8 @@ public static class SyntheticPart
                 (float)(Origins[0].Z - origin.Z));
             _header = new ModelHeader(key, $"{key}.rvt", 2024, DateTimeOffset.UnixEpoch, true, "{3D}", origin.X, origin.Y, origin.Z);
         }
+
+        public int Index => _modelIndex;
 
         public string Discipline { get; }
 

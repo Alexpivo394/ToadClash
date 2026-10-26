@@ -49,4 +49,20 @@ public sealed class SyntheticPartTests
             }
         }
     }
+
+    [Test]
+    public void SyntheticPart_HasRealisticTrianglesAndConnectedMep()
+    {
+        foreach (var profile in new[] { SyntheticProfile.Standard, SyntheticProfile.Dense })
+        {
+            var part = SyntheticPart.Generate(12000, 12, 1, profile);
+            var elements = part.SelectMany(m => m.Geometry.Elements.Select(e => (m.Discipline, Element: e))).ToList();
+
+            var average = elements.Average(e => (double)e.Element.Mesh.TriangleCount);
+            average.ShouldBeInRange(150, 300);
+
+            var mep = elements.Where(e => e.Discipline is not ("КР" or "АР")).ToList();
+            mep.Count(e => e.Element.Info.ConnectedUniqueIds.Count > 0).ShouldBeGreaterThanOrEqualTo(mep.Count / 2);
+        }
+    }
 }
