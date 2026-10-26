@@ -1,0 +1,8 @@
+.superpowers/
+bin/
+obj/
+output/
+.vs/
+.idea/
+*.user
+TestResults/
