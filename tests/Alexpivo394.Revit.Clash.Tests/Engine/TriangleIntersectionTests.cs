@@ -52,11 +52,40 @@ public sealed class TriangleIntersectionTests
     }
 
     [Test]
-    public void Coplanar_DoNotIntersect()
+    public void Coplanar_OppositeNormals_DoNotIntersect()
     {
-        Vec3d[] other = [V(1, 1, 0), V(8, 1, 0), V(1, 8, 0)];
+        Vec3d[] other = [V(1, 1, 0), V(1, 8, 0), V(8, 1, 0)];
 
         Test(Floor, other, out _, out _).ShouldBeFalse();
+    }
+
+    [Test]
+    public void Coplanar_SameNormals_Overlapping_Intersect_WithOverlapBounds()
+    {
+        Vec3d[] other = [V(1, 1, 0), V(20, 1, 0), V(1, 20, 0)];
+
+        Test(Floor, other, out var p, out var q).ShouldBeTrue();
+
+        p.X.ShouldBe(1, 1e-9);
+        p.Y.ShouldBe(1, 1e-9);
+        q.X.ShouldBe(9, 1e-9);
+        q.Y.ShouldBe(9, 1e-9);
+    }
+
+    [Test]
+    public void Coplanar_SameNormals_SharingEdgeOnly_DoNotIntersect()
+    {
+        Vec3d[] neighbour = [V(10, 0, 0), V(10, 10, 0), V(0, 10, 0)];
+
+        Test(Floor, neighbour, out _, out _).ShouldBeFalse();
+    }
+
+    [Test]
+    public void Coplanar_SameNormals_Disjoint_DoNotIntersect()
+    {
+        Vec3d[] far = [V(20, 0, 0), V(30, 0, 0), V(20, 10, 0)];
+
+        Test(Floor, far, out _, out _).ShouldBeFalse();
     }
 
     [Test]

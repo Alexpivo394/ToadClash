@@ -163,9 +163,9 @@ public sealed class ClashEngineTests
 
         result.Hits.Count.ShouldBe(1);
         result.Hits[0].DepthMm.ShouldBe(25f, 1f);
-        result.Hits[0].PointX.ShouldBe(far + 987.5, 25);
-        result.Hits[0].PointY.ShouldBe(far + 550, 25);
-        result.Hits[0].PointZ.ShouldBe(far + 550, 25);
+        result.Hits[0].PointX.ShouldBe(far + 987.5, 1);
+        result.Hits[0].PointY.ShouldBe(far + 550, 1);
+        result.Hits[0].PointZ.ShouldBe(far + 550, 1);
     }
 
     [Test]
@@ -202,5 +202,96 @@ public sealed class ClashEngineTests
 
         Should.Throw<OperationCanceledException>(() =>
             new ClashEngine(new EngineOptions()).Run(models, Config(), cts.Token));
+    }
+
+    private static ElementMesh Inverted(ElementMesh mesh)
+    {
+        var indices = (int[])mesh.Indices.Clone();
+        for (var t = 0; t < indices.Length; t += 3) (indices[t + 1], indices[t + 2]) = (indices[t + 2], indices[t + 1]);
+        return new ElementMesh(mesh.Positions, indices);
+    }
+
+    private static ElementMesh Wall(float x0, float y0, float x1, float y1) =>
+        TestScenes.Box(new Vector3(x0, y0, 0), new Vector3(x1, y1, 3000));
+
+    [Test]
+    public void IdenticalBoxes_Hit()
+    {
+        var result = RunPair(Cube(0), Cube(0));
+
+        result.Hits.Count.ShouldBe(1);
+        result.Hits[0].DepthMm.ShouldBe(1000f, 1f);
+        result.Hits[0].PointX.ShouldBe(500, 1);
+    }
+
+    [Test]
+    public void IdenticalWalls_Hit()
+    {
+        var result = RunPair(Wall(0, 0, 5000, 200), Wall(0, 0, 5000, 200));
+
+        result.Hits.Count.ShouldBe(1);
+        result.Hits[0].DepthMm.ShouldBe(200f, 1f);
+    }
+
+    [Test]
+    public void BoxesFaceToFace_OppositeNormals_NoHit()
+    {
+        RunPair(Cube(0), Cube(0, 0, 1000), tolerance: 0).Hits.ShouldBeEmpty();
+        RunPair(Cube(0), Cube(0, 1000), tolerance: 0).Hits.ShouldBeEmpty();
+    }
+
+    [Test]
+    public void FlushOverlap_BothInverted_Hit()
+    {
+        var result = RunPair(Inverted(Cube(0)), Inverted(Cube(500)));
+
+        result.Hits.Count.ShouldBe(1);
+        result.Hits[0].DepthMm.ShouldBe(500f, 1f);
+    }
+
+    [Test]
+    public void FlushOverlap_OneInverted_Hit() =>
+        RunPair(Cube(0), Inverted(Cube(500))).Hits.Single().DepthMm.ShouldBe(500f, 1f);
+
+    [Test]
+    public void Duplicates_OneInverted_Hit() =>
+        RunPair(Cube(0), Inverted(Cube(0))).Hits.Single().DepthMm.ShouldBe(1000f, 1f);
+
+    [Test]
+    [Arguments(20)]
+    [Arguments(0)]
+    public void WallStandingOnLargerSlab_NoHit(double tolerance)
+    {
+        var slab = TestScenes.Box(new Vector3(-2000, -2000, -200), new Vector3(8000, 8000, 0));
+
+        RunPair(Wall(0, 0, 5000, 200), slab, tolerance).Hits.ShouldBeEmpty();
+        RunPair(Wall(0, 0, 5000, 200), Inverted(slab), tolerance).Hits.ShouldBeEmpty();
+    }
+
+    [Test]
+    [Arguments(20)]
+    [Arguments(0)]
+    public void WallTJunction_NoHit(double tolerance) =>
+        RunPair(Wall(0, 0, 5000, 200), Wall(2000, 200, 2200, 3000), tolerance).Hits.ShouldBeEmpty();
+
+    [Test]
+    [Arguments(20)]
+    [Arguments(0)]
+    public void WallButtJoint_NoHit(double tolerance) =>
+        RunPair(Wall(0, 0, 5000, 200), Wall(5000, 0, 10000, 200), tolerance).Hits.ShouldBeEmpty();
+
+    [Test]
+    [Arguments(20)]
+    [Arguments(0)]
+    public void PipeRestingOnTray_NoHit(double tolerance)
+    {
+        // Лоток: дно 2 мм и борта; нижняя образующая трубы лежит на дне.
+        var tray = Merge(
+            TestScenes.Box(new Vector3(0, -150, -2), new Vector3(5000, 150, 0)),
+            TestScenes.Box(new Vector3(0, -150, 0), new Vector3(5000, -148, 100)),
+            TestScenes.Box(new Vector3(0, 148, 0), new Vector3(5000, 150, 100)));
+        var pipe = TestScenes.Cylinder(new Vector3(-100, 0, 50), new Vector3(5100, 0, 50), 50, 24);
+
+        RunPair(pipe, tray, tolerance).Hits.ShouldBeEmpty();
     }
 }

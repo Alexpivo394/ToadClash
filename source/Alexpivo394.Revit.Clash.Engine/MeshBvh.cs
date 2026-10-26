@@ -5,7 +5,8 @@ namespace Alexpivo394.Revit.Clash.Engine;
 
 /// <summary>
 ///     BVH треугольников одного элемента: разбиение по медиане центров вдоль самой длинной оси, листья не более 4 треугольников.
-///     Вырожденные треугольники в дерево не попадают.
+///     Вырожденные треугольники в дерево не попадают. Замкнутая сетка хранится с внешней ориентацией
+///     (<see cref="MeshTopology"/>), исходные массивы элемента не меняются.
 /// </summary>
 internal sealed class MeshBvh
 {
@@ -19,8 +20,9 @@ internal sealed class MeshBvh
     private readonly int[] _triangles;
     private int _nodeCount;
 
-    private MeshBvh(float[] positions, int[] indices, int[] triangles)
+    private MeshBvh(float[] positions, int[] indices, int[] triangles, bool closed)
     {
+        IsClosed = closed;
         _positions = positions;
         _indices = indices;
         _triangles = triangles;
@@ -31,11 +33,14 @@ internal sealed class MeshBvh
     /// <summary>Число невырожденных треугольников в дереве.</summary>
     public int TriangleCount => _triangles.Length;
 
+    /// <summary>Замкнута ли сетка элемента.</summary>
+    public bool IsClosed { get; }
+
     /// <summary>Строит дерево по сетке элемента сцены.</summary>
     public static MeshBvh Build(SceneElement element)
     {
         var positions = element.Positions;
-        var indices = element.Indices;
+        var indices = MeshTopology.Orient(positions, element.Indices, out var closed);
         var triangleCount = indices.Length / 3;
         var triangles = new List<int>(triangleCount);
         for (var t = 0; t < triangleCount; t++)
@@ -43,7 +48,7 @@ internal sealed class MeshBvh
             if (!IsDegenerate(positions, indices, t)) triangles.Add(t);
         }
 
-        var bvh = new MeshBvh(positions, indices, [.. triangles]);
+        var bvh = new MeshBvh(positions, indices, [.. triangles], closed);
         if (bvh._triangles.Length == 0) return bvh;
 
         var centers = new Vector3[triangleCount];

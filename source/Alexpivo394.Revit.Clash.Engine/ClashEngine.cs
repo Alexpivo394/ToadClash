@@ -12,7 +12,8 @@ namespace Alexpivo394.Revit.Clash.Engine;
 /// </summary>
 /// <remarks>
 ///     Для пары треугольники меньшего элемента (только с габаритом в общей части габаритов пары) проверяются
-///     по BVH большего. BVH элемента строится лениво при первой надобности и живёт до конца прогона.
+///     по BVH большего. BVH элемента (с замкнутостью и внешней ориентацией сетки) строится лениво при первой
+///     надобности и живёт до конца прогона. Допуск ячейки меньше 0.05 мм поднимается до 0.05 мм.
 /// </remarks>
 public sealed class ClashEngine(EngineOptions options)
 {
@@ -21,6 +22,11 @@ public sealed class ClashEngine(EngineOptions options)
 
     /// <summary>Расширение зоны сверх допуска при оценке глубины, мм.</summary>
     private const float ZoneMargin = 1;
+
+    /// <summary>
+    ///     Нижняя граница допуска, мм: при допуске 0 касание с погрешностью float не становится коллизией.
+    /// </summary>
+    private const float MinToleranceMm = 0.05f;
 
     private readonly EngineOptions _options = options ?? throw new ArgumentNullException(nameof(options));
 
@@ -116,6 +122,7 @@ public sealed class ClashEngine(EngineOptions options)
     private sealed class Worker(NarrowPhase narrow)
     {
         private readonly List<int> _candidates = [];
+        private readonly List<int> _smallTriangles = [];
         private readonly PenetrationDepth.Scratch _scratch = new();
 
         public List<ClashHit> Hits { get; } = [];
@@ -129,14 +136,14 @@ public sealed class ClashEngine(EngineOptions options)
 
             var zone = Aabb.Empty;
             var (small, large) = a.Indices.Length <= b.Indices.Length ? (pair.A, pair.B) : (pair.B, pair.A);
-            if (!Intersections(scene.Elements[small], narrow.BvhOf(large), Common(a.Bounds, b.Bounds), ref zone))
+            if (!Intersections(narrow.BvhOf(small), narrow.BvhOf(large), Common(a.Bounds, b.Bounds), ref zone))
             {
                 if (narrow.Containment.IsInside(pair.A, pair.B, _candidates)) zone = a.Bounds;
                 else if (narrow.Containment.IsInside(pair.B, pair.A, _candidates)) zone = b.Bounds;
                 else return false;
             }
 
-            var tolerance = pair.ToleranceMm;
+            var tolerance = Math.Max(pair.ToleranceMm, MinToleranceMm);
             var depth = PenetrationDepth.Estimate(
                 a, narrow.BvhOf(pair.A), b, narrow.BvhOf(pair.B), zone.Expand(tolerance + ZoneMargin), _scratch);
             if (!(depth > tolerance)) return false;
@@ -152,24 +159,19 @@ public sealed class ClashEngine(EngineOptions options)
             return true;
         }
 
-        // Все отрезки пересечения треугольников пары; zone - их общий габарит.
-        private bool Intersections(SceneElement small, MeshBvh large, in Aabb common, ref Aabb zone)
+        // Все отрезки пересечения треугольников пары; zone - их общий габарит. Треугольники берутся из BVH,
+        // то есть с внешней ориентацией для замкнутых сеток.
+        private bool Intersections(MeshBvh small, MeshBvh large, in Aabb common, ref Aabb zone)
         {
             var eps = (float)TriangleIntersection.PlaneEpsilon;
-            var area = common.Expand(eps);
+            _smallTriangles.Clear();
+            small.Query(common.Expand(eps), _smallTriangles);
             var found = false;
-            var positions = small.Positions;
-            var indices = small.Indices;
-            for (var t = 0; t < indices.Length / 3; t++)
+            foreach (var t in _smallTriangles)
             {
-                var a0 = Vec3d.At(positions, indices[t * 3]);
-                var a1 = Vec3d.At(positions, indices[t * 3 + 1]);
-                var a2 = Vec3d.At(positions, indices[t * 3 + 2]);
-                var box = BoxOf(a0, a1, a2);
-                if (!box.Overlaps(area)) continue;
-
+                small.Vertices(t, out var a0, out var a1, out var a2);
                 _candidates.Clear();
-                large.Query(box.Expand(eps), _candidates);
+                large.Query(small.BoundsOf(t).Expand(eps), _candidates);
                 foreach (var u in _candidates)
                 {
                     large.Vertices(u, out var b0, out var b1, out var b2);
