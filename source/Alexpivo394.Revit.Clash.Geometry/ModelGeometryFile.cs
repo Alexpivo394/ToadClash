@@ -91,18 +91,20 @@ public static class ModelGeometryFile
             }
 
             var blockLength = reader.ReadInt64();
-            if (blockLength < 0 || blockLength > int.MaxValue)
-                throw new InvalidDataException("Недопустимая длина блока сеток.");
-            var block = reader.ReadExactly((int)blockLength);
+            if (blockLength < 0) throw new InvalidDataException("Недопустимая длина блока сеток.");
 
             var elements = new ElementGeometry[count];
+            long position = 0;
             for (var i = 0; i < count; i++)
             {
-                if (offsets[i] < 0 || lengths[i] < 0 || offsets[i] + lengths[i] > block.Length)
-                    throw new InvalidDataException("Сетка элемента выходит за границы блока сеток.");
-                var mesh = DecompressMesh(block, (int)offsets[i], lengths[i]);
+                if (offsets[i] != position || lengths[i] < 0 || position + lengths[i] > blockLength)
+                    throw new InvalidDataException("Сетка элемента не соответствует блоку сеток.");
+                var mesh = DecompressMesh(reader.ReadExactly(lengths[i]));
+                position += lengths[i];
                 elements[i] = new ElementGeometry(infos[i], mesh, bounds[i], fingerprints[i]);
             }
+
+            if (position != blockLength) throw new InvalidDataException("Длина блока сеток не совпадает с таблицей.");
 
             var inventory = reader.ReadStrings(MaxElements);
             return new ModelGeometry(header, elements, inventory);
@@ -206,6 +208,9 @@ public static class ModelGeometryFile
 
     private static byte[] CompressMesh(ElementMesh mesh)
     {
+        if (mesh.Positions.Length > MaxMeshValues || mesh.Indices.Length > MaxMeshValues)
+            throw new ArgumentException("Сетка превышает допустимый размер формата.", nameof(mesh));
+
         using var buffer = new MemoryStream();
         using (var deflate = new DeflateStream(buffer, CompressionLevel.Fastest, true))
         using (var writer = BinaryIo.CreateWriter(deflate))
@@ -219,9 +224,9 @@ public static class ModelGeometryFile
         return buffer.ToArray();
     }
 
-    private static ElementMesh DecompressMesh(byte[] block, int offset, int length)
+    private static ElementMesh DecompressMesh(byte[] compressed)
     {
-        using var source = new MemoryStream(block, offset, length, false);
+        using var source = new MemoryStream(compressed, false);
         using var deflate = new DeflateStream(source, CompressionMode.Decompress);
         using var reader = BinaryIo.CreateReader(deflate);
 
