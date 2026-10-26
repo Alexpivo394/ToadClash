@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+    <AddIn Type="Application">
+        <Name>ToadClash.DevAddin</Name>
+        <Assembly>ToadClash.DevAddin/ToadClash.DevAddin.dll</Assembly>
+        <AddInId>8E1B4C2A-5D3F-4A67-9C0E-6B2D7F4A1E93</AddInId>
+        <FullClassName>ToadClash.DevAddin.Application</FullClassName>
+        <VendorId>Alexpivo394</VendorId>
+        <VendorDescription>ToadClash — отладочная выгрузка геометрии для проверки на коллизии, https://github.com/Alexpivo394</VendorDescription>
+    </AddIn>
+</RevitAddIns>

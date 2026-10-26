@@ -1,0 +1,32 @@
+<Project Sdk="Nice3point.Revit.Sdk/6.2.2">
+
+    <!-- Fallback Revit version for design-time evaluation; a Debug.Rxx / Release.Rxx build overrides it -->
+    <PropertyGroup>
+        <RevitVersion Condition="'$(RevitVersion)' == ''">2024</RevitVersion>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <Configurations>Debug.R20;Debug.R21;Debug.R22;Debug.R23;Debug.R24;Debug.R25;Debug.R26;Debug.R27</Configurations>
+        <Configurations>$(Configurations);Release.R20;Release.R21;Release.R22;Release.R23;Release.R24;Release.R25;Release.R26;Release.R27</Configurations>
+        <RootNamespace>Alexpivo394.Revit.Clash.Revit</RootNamespace>
+        <IsPackable>true</IsPackable>
+        <PackageId>Alexpivo394.Revit.Clash.Revit</PackageId>
+        <Description>UI-free Revit extractor for clash detection: tessellated element geometry in shared coordinates, parameters and MEP connectivity.</Description>
+        <PackageTags>revit;autodesk;clash;geometry</PackageTags>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Alexpivo394.Revit.Clash.Tests"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Nice3point.Revit.Extensions"/>
+        <PackageReference Include="Nice3point.Revit.Api.RevitAPI"/>
+        <PackageReference Include="Polyfill" PrivateAssets="all"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Alexpivo394.Revit.Clash.Geometry\Alexpivo394.Revit.Clash.Geometry.csproj"/>
+    </ItemGroup>
+
+</Project>

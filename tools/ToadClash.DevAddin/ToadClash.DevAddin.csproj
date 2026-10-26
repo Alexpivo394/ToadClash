@@ -1,0 +1,26 @@
+<Project Sdk="Nice3point.Revit.Sdk/6.2.2">
+
+    <!-- Отладочный аддин Revit 2022: кнопка «Выгрузить для ToadClash» пишет .tcg/.tcp рядом с моделью.
+         Не поставляется; в каталог аддинов Revit сам не копируется, сборка кладётся в bin\publish
+         (для автоматического подключения: dotnet build -c Debug.R22 -p:DeployAddin=true). -->
+    <PropertyGroup>
+        <Configurations>Debug.R22;Release.R22</Configurations>
+        <RootNamespace>ToadClash.DevAddin</RootNamespace>
+        <IsPackable>false</IsPackable>
+        <UseWPF>true</UseWPF>
+        <PublishAddin>true</PublishAddin>
+        <EnableDynamicLoading>true</EnableDynamicLoading>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Nice3point.Revit.Toolkit"/>
+        <PackageReference Include="Nice3point.Revit.Extensions"/>
+        <PackageReference Include="Nice3point.Revit.Api.RevitAPI"/>
+        <PackageReference Include="Nice3point.Revit.Api.RevitAPIUI"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\source\Alexpivo394.Revit.Clash.Revit\Alexpivo394.Revit.Clash.Revit.csproj"/>
+    </ItemGroup>
+
+</Project>

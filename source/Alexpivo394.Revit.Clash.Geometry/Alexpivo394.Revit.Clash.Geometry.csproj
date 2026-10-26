@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFrameworks>net48;net8.0</TargetFrameworks>
+        <!-- net47 - Revit 2020, он же подходит Revit 2021-2024 (net48) -->
+        <TargetFrameworks>net47;net8.0</TargetFrameworks>
         <RootNamespace>Alexpivo394.Revit.Clash.Geometry</RootNamespace>
         <IsPackable>true</IsPackable>
         <PackageId>Alexpivo394.Revit.Clash.Geometry</PackageId>
@@ -16,7 +17,7 @@
     <ItemGroup>
         <PackageReference Include="Polyfill" PrivateAssets="all"/>
         <PackageReference Include="System.IO.Hashing"/>
-        <PackageReference Include="System.Numerics.Vectors" Condition="'$(TargetFramework)' == 'net48'"/>
+        <PackageReference Include="System.Numerics.Vectors" Condition="'$(TargetFramework)' == 'net47'"/>
     </ItemGroup>
 
 </Project>

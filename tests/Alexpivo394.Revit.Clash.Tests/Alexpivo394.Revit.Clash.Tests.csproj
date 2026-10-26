@@ -18,4 +18,9 @@
         <ProjectReference Include="..\..\tools\ToadClash.Bench\ToadClash.Bench.csproj"/>
     </ItemGroup>
 
+    <!-- Сшивка сеток без Revit API: файл подключается ссылкой, поэтому проекту не нужен Revit SDK -->
+    <ItemGroup>
+        <Compile Include="..\..\source\Alexpivo394.Revit.Clash.Revit\MeshBuilder.cs" Link="Linked\Revit\MeshBuilder.cs"/>
+    </ItemGroup>
+
 </Project>

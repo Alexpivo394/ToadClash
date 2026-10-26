@@ -1,0 +1,215 @@
+using Alexpivo394.Revit.Clash.Geometry;
+using ParameterValue = Alexpivo394.Revit.Clash.Geometry.ParameterValue;
+
+namespace Alexpivo394.Revit.Clash.Revit;
+
+/// <summary>Выгрузка геометрии и параметров модели Revit для проверки на коллизии.</summary>
+public static class GeometryExtractor
+{
+    /// <summary>
+    ///     Видимые на виде элементы с геометрией + опись всех элементов модели (без видов, типов, элементов без категории).
+    ///     Учитываются только элементы модельных встроенных категорий; группы, сборки и связанные модели не выгружаются.
+    ///     Координаты - мм в общей системе документа, относительно начала, округлённого до метра.
+    /// </summary>
+    /// <param name="doc">Документ; не изменяется.</param>
+    /// <param name="options">Ключ модели, имя 3D-вида и детализация триангуляции.</param>
+    /// <param name="ct">Отмена между элементами.</param>
+    /// <exception cref="ArgumentException">В документе нет 3D-вида с именем <see cref="ExtractOptions.ViewName"/>.</exception>
+    /// <exception cref="OperationCanceledException">Выгрузка отменена.</exception>
+    public static (ModelGeometry Geometry, ModelParameters Parameters) Extract(Document doc, ExtractOptions options, CancellationToken ct)
+    {
+        if (doc is null) throw new ArgumentNullException(nameof(doc));
+        if (options is null) throw new ArgumentNullException(nameof(options));
+
+        var view = FindView(doc, options.ViewName);
+        var categoryNames = ModelCategoryNames(doc);
+        var categories = categoryNames.Keys.ToList();
+        var coordinates = CoordinateTransform.FromDocument(doc);
+        var visible = CollectVisible(doc, view, categories);
+
+        var origin = OriginOf(visible, view, coordinates);
+        var header = new ModelHeader(
+            options.ModelKey,
+            doc.PathName,
+            int.Parse(doc.Application.VersionNumber),
+            DateTimeOffset.UtcNow,
+            false,
+            view.Name,
+            origin.X,
+            origin.Y,
+            origin.Z);
+
+        var geometryOptions = new Options { View = view, ComputeReferences = false };
+        var parameterReader = new ParameterReader();
+        var elements = new List<ElementGeometry>(visible.Count);
+        var parameters = new Dictionary<string, IReadOnlyList<ParameterValue>>(visible.Count, StringComparer.Ordinal);
+        foreach (var element in visible)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var mesh = Tessellate(element, geometryOptions, coordinates, origin, options.TriangulationLevelOfDetail);
+            if (mesh.TriangleCount == 0) continue;
+
+            var info = ReadInfo(element, categoryNames);
+            elements.Add(new ElementGeometry(info, mesh, Aabb.FromPositions(mesh.Positions), Fingerprint.Compute(mesh, header)));
+            parameters[info.UniqueId] = parameterReader.Read(element);
+        }
+
+        var inventory = new List<string>();
+        foreach (var element in doc.CollectElements().WhereElementIsNotElementType().OfCategories(categories))
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!IsContainer(element)) inventory.Add(element.UniqueId);
+        }
+
+        var geometry = new ModelGeometry(header with { Complete = true }, elements, inventory);
+        return (geometry, new ModelParameters(parameters));
+    }
+
+    private static View3D FindView(Document doc, string viewName)
+    {
+        foreach (var element in doc.CollectElements().OfClass(typeof(View3D)))
+        {
+            if (element is View3D { IsTemplate: false } view && view.Name == viewName) return view;
+        }
+
+        throw new ArgumentException($"В документе нет 3D-вида \"{viewName}\".", nameof(viewName));
+    }
+
+    /// <summary>
+    ///     Встроенные модельные категории документа и их имена BuiltInCategory. Подкатегории включаются: категорией
+    ///     элемента бывает и подкатегория (OST_Cornices у профилей стен, OST_EdgeSlab у кромок перекрытий).
+    /// </summary>
+    private static Dictionary<BuiltInCategory, string> ModelCategoryNames(Document doc)
+    {
+        var names = new Dictionary<BuiltInCategory, string>();
+        foreach (Category category in doc.Settings.Categories)
+        {
+            if (category.CategoryType != CategoryType.Model) continue;
+            AddBuiltIn(category);
+            foreach (Category subCategory in category.SubCategories) AddBuiltIn(subCategory);
+        }
+
+        return names;
+
+        void AddBuiltIn(Category category)
+        {
+            var id = IdValue(category.Id);
+            if (id >= 0 || !Enum.IsDefined(typeof(BuiltInCategory), (int)id)) return;
+            var builtIn = (BuiltInCategory)id;
+            names[builtIn] = builtIn.ToString();
+        }
+    }
+
+    /// <summary>Видимые на виде экземпляры; вложенные общие семейства добавляются отдельными элементами.</summary>
+    private static List<Element> CollectVisible(Document doc, View3D view, ICollection<BuiltInCategory> categories)
+    {
+        var categoryIds = new HashSet<ElementId>(categories.Select(category => category.ToElementId()));
+        var seen = new HashSet<ElementId>();
+        var result = new List<Element>();
+        foreach (var element in doc.CollectElements(view).WhereElementIsNotElementType().OfCategories(categories))
+            Add(element);
+        return result;
+
+        void Add(Element element)
+        {
+            if (!seen.Add(element.Id) || IsContainer(element)) return;
+            result.Add(element);
+            if (element is not FamilyInstance instance) return;
+
+            foreach (var id in instance.GetSubComponentIds())
+            {
+                if (id.ToElement(doc) is { Category: { } category } nested &&
+                    categoryIds.Contains(category.Id) && !nested.IsHidden(view))
+                    Add(nested);
+            }
+        }
+    }
+
+    /// <summary>Элементы-контейнеры: их геометрия повторяет геометрию входящих элементов или другой модели.</summary>
+    private static bool IsContainer(Element element) => element is View or Group or AssemblyInstance or RevitLinkInstance;
+
+    private static Vector3d OriginOf(List<Element> elements, View3D view, CoordinateTransform coordinates)
+    {
+        foreach (var element in elements)
+        {
+            if (element.get_BoundingBox(view) is not { } box) continue;
+            return coordinates.RoundedOrigin(box.Transform.OfPoint((box.Min + box.Max) / 2));
+        }
+
+        return coordinates.RoundedOrigin(XYZ.Zero);
+    }
+
+    private static ElementMesh Tessellate(Element element, Options options, CoordinateTransform coordinates, Vector3d origin, double levelOfDetail)
+    {
+        var builder = new MeshBuilder(origin);
+        if (element.get_Geometry(options) is { } geometry)
+            AppendGeometry(builder, geometry, Transform.Identity, coordinates, levelOfDetail);
+        return builder.Build();
+    }
+
+    private static void AppendGeometry(MeshBuilder builder, GeometryElement geometry, Transform local, CoordinateTransform coordinates, double levelOfDetail)
+    {
+        foreach (var geometryObject in geometry)
+        {
+            switch (geometryObject)
+            {
+                case GeometryInstance instance:
+                    AppendGeometry(builder, instance.GetSymbolGeometry(), local.Multiply(instance.Transform), coordinates, levelOfDetail);
+                    break;
+                case Solid solid when solid.Faces.Size > 0:
+                    foreach (Face face in solid.Faces) AppendMesh(builder, face.Triangulate(levelOfDetail), local, coordinates);
+                    break;
+                case Mesh mesh:
+                    AppendMesh(builder, mesh, local, coordinates);
+                    break;
+            }
+        }
+    }
+
+    /// <summary>Отражающая трансформация (определитель меньше нуля) выворачивает обход, поэтому порядок вершин меняется.</summary>
+    private static void AppendMesh(MeshBuilder builder, Mesh? mesh, Transform local, CoordinateTransform coordinates)
+    {
+        if (mesh is null || mesh.NumTriangles == 0) return;
+
+        var vertices = coordinates.ToSharedMillimeters(mesh.Vertices, local);
+        var mirrored = local.Determinant < 0;
+        for (var i = 0; i < mesh.NumTriangles; i++)
+        {
+            var triangle = mesh.get_Triangle(i);
+            var a = vertices[triangle.get_Index(0)];
+            var b = vertices[triangle.get_Index(1)];
+            var c = vertices[triangle.get_Index(2)];
+            if (mirrored) builder.AddTriangle(a, c, b);
+            else builder.AddTriangle(a, b, c);
+        }
+    }
+
+    private static ElementInfo ReadInfo(Element element, Dictionary<BuiltInCategory, string> categoryNames)
+    {
+        var doc = element.Document;
+        var type = element.GetTypeId().ToElement<ElementType>(doc);
+        var workset = doc.IsWorkshared ? doc.GetWorksetTable().GetWorkset(element.WorksetId)?.Name : null;
+        return new ElementInfo(
+            element.UniqueId,
+            IdValue(element.Id),
+            categoryNames[(BuiltInCategory)IdValue(element.Category.Id)],
+            type?.FamilyName,
+            type?.Name,
+            LevelOf(element)?.Name,
+            workset,
+            ConnectivityReader.ReadConnectedUniqueIds(element));
+    }
+
+    private static Level? LevelOf(Element element) =>
+        element.LevelId.ToElement<Level>(element.Document) ??
+        element.get_Parameter(BuiltInParameter.INSTANCE_REFERENCE_LEVEL_PARAM)?.AsElement<Level>() ??
+        element.get_Parameter(BuiltInParameter.SCHEDULE_LEVEL_PARAM)?.AsElement<Level>();
+
+    private static long IdValue(ElementId id) =>
+#if REVIT2024_OR_GREATER
+        id.Value;
+#else
+        id.IntegerValue;
+#endif
+}

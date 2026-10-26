@@ -1,4 +1,24 @@
 <Solution>
+  <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="Release" />
+    <BuildType Name="Debug.R20" />
+    <BuildType Name="Debug.R21" />
+    <BuildType Name="Debug.R22" />
+    <BuildType Name="Debug.R23" />
+    <BuildType Name="Debug.R24" />
+    <BuildType Name="Debug.R25" />
+    <BuildType Name="Debug.R26" />
+    <BuildType Name="Debug.R27" />
+    <BuildType Name="Release.R20" />
+    <BuildType Name="Release.R21" />
+    <BuildType Name="Release.R22" />
+    <BuildType Name="Release.R23" />
+    <BuildType Name="Release.R24" />
+    <BuildType Name="Release.R25" />
+    <BuildType Name="Release.R26" />
+    <BuildType Name="Release.R27" />
+  </Configurations>
   <Folder Name="/Solution Items/">
     <File Path="Directory.Build.props" />
     <File Path="Directory.Packages.props" />
@@ -6,14 +26,203 @@
     <File Path="Readme.md" />
   </Folder>
   <Folder Name="/source/">
-    <Project Path="source/Alexpivo394.Revit.Clash.Engine/Alexpivo394.Revit.Clash.Engine.csproj" />
-    <Project Path="source/Alexpivo394.Revit.Clash.Geometry/Alexpivo394.Revit.Clash.Geometry.csproj" />
-    <Project Path="source/Alexpivo394.Revit.Clash.Rules/Alexpivo394.Revit.Clash.Rules.csproj" />
+    <Project Path="source/Alexpivo394.Revit.Clash.Engine/Alexpivo394.Revit.Clash.Engine.csproj">
+      <BuildType Solution="Debug.R20|*" Project="Debug" />
+      <Build Solution="Debug.R20|*" Project="false" />
+      <BuildType Solution="Debug.R21|*" Project="Debug" />
+      <Build Solution="Debug.R21|*" Project="false" />
+      <BuildType Solution="Debug.R22|*" Project="Debug" />
+      <Build Solution="Debug.R22|*" Project="false" />
+      <BuildType Solution="Debug.R23|*" Project="Debug" />
+      <Build Solution="Debug.R23|*" Project="false" />
+      <BuildType Solution="Debug.R24|*" Project="Debug" />
+      <Build Solution="Debug.R24|*" Project="false" />
+      <BuildType Solution="Debug.R25|*" Project="Debug" />
+      <Build Solution="Debug.R25|*" Project="false" />
+      <BuildType Solution="Debug.R26|*" Project="Debug" />
+      <Build Solution="Debug.R26|*" Project="false" />
+      <BuildType Solution="Debug.R27|*" Project="Debug" />
+      <Build Solution="Debug.R27|*" Project="false" />
+      <BuildType Solution="Release.R20|*" Project="Release" />
+      <Build Solution="Release.R20|*" Project="false" />
+      <BuildType Solution="Release.R21|*" Project="Release" />
+      <Build Solution="Release.R21|*" Project="false" />
+      <BuildType Solution="Release.R22|*" Project="Release" />
+      <Build Solution="Release.R22|*" Project="false" />
+      <BuildType Solution="Release.R23|*" Project="Release" />
+      <Build Solution="Release.R23|*" Project="false" />
+      <BuildType Solution="Release.R24|*" Project="Release" />
+      <Build Solution="Release.R24|*" Project="false" />
+      <BuildType Solution="Release.R25|*" Project="Release" />
+      <Build Solution="Release.R25|*" Project="false" />
+      <BuildType Solution="Release.R26|*" Project="Release" />
+      <Build Solution="Release.R26|*" Project="false" />
+      <BuildType Solution="Release.R27|*" Project="Release" />
+      <Build Solution="Release.R27|*" Project="false" />
+    </Project>
+    <Project Path="source/Alexpivo394.Revit.Clash.Geometry/Alexpivo394.Revit.Clash.Geometry.csproj">
+      <BuildType Solution="Debug.R20|*" Project="Debug" />
+      <BuildType Solution="Debug.R21|*" Project="Debug" />
+      <BuildType Solution="Debug.R22|*" Project="Debug" />
+      <BuildType Solution="Debug.R23|*" Project="Debug" />
+      <BuildType Solution="Debug.R24|*" Project="Debug" />
+      <BuildType Solution="Debug.R25|*" Project="Debug" />
+      <BuildType Solution="Debug.R26|*" Project="Debug" />
+      <BuildType Solution="Debug.R27|*" Project="Debug" />
+      <BuildType Solution="Release.R20|*" Project="Release" />
+      <BuildType Solution="Release.R21|*" Project="Release" />
+      <BuildType Solution="Release.R22|*" Project="Release" />
+      <BuildType Solution="Release.R23|*" Project="Release" />
+      <BuildType Solution="Release.R24|*" Project="Release" />
+      <BuildType Solution="Release.R25|*" Project="Release" />
+      <BuildType Solution="Release.R26|*" Project="Release" />
+      <BuildType Solution="Release.R27|*" Project="Release" />
+    </Project>
+    <Project Path="source/Alexpivo394.Revit.Clash.Revit/Alexpivo394.Revit.Clash.Revit.csproj">
+      <BuildType Solution="Debug|*" Project="Debug.R24" />
+      <Build Solution="Debug|*" Project="false" />
+      <BuildType Solution="Release|*" Project="Release.R24" />
+      <Build Solution="Release|*" Project="false" />
+    </Project>
+    <Project Path="source/Alexpivo394.Revit.Clash.Rules/Alexpivo394.Revit.Clash.Rules.csproj">
+      <BuildType Solution="Debug.R20|*" Project="Debug" />
+      <Build Solution="Debug.R20|*" Project="false" />
+      <BuildType Solution="Debug.R21|*" Project="Debug" />
+      <Build Solution="Debug.R21|*" Project="false" />
+      <BuildType Solution="Debug.R22|*" Project="Debug" />
+      <Build Solution="Debug.R22|*" Project="false" />
+      <BuildType Solution="Debug.R23|*" Project="Debug" />
+      <Build Solution="Debug.R23|*" Project="false" />
+      <BuildType Solution="Debug.R24|*" Project="Debug" />
+      <Build Solution="Debug.R24|*" Project="false" />
+      <BuildType Solution="Debug.R25|*" Project="Debug" />
+      <Build Solution="Debug.R25|*" Project="false" />
+      <BuildType Solution="Debug.R26|*" Project="Debug" />
+      <Build Solution="Debug.R26|*" Project="false" />
+      <BuildType Solution="Debug.R27|*" Project="Debug" />
+      <Build Solution="Debug.R27|*" Project="false" />
+      <BuildType Solution="Release.R20|*" Project="Release" />
+      <Build Solution="Release.R20|*" Project="false" />
+      <BuildType Solution="Release.R21|*" Project="Release" />
+      <Build Solution="Release.R21|*" Project="false" />
+      <BuildType Solution="Release.R22|*" Project="Release" />
+      <Build Solution="Release.R22|*" Project="false" />
+      <BuildType Solution="Release.R23|*" Project="Release" />
+      <Build Solution="Release.R23|*" Project="false" />
+      <BuildType Solution="Release.R24|*" Project="Release" />
+      <Build Solution="Release.R24|*" Project="false" />
+      <BuildType Solution="Release.R25|*" Project="Release" />
+      <Build Solution="Release.R25|*" Project="false" />
+      <BuildType Solution="Release.R26|*" Project="Release" />
+      <Build Solution="Release.R26|*" Project="false" />
+      <BuildType Solution="Release.R27|*" Project="Release" />
+      <Build Solution="Release.R27|*" Project="false" />
+    </Project>
   </Folder>
   <Folder Name="/tools/">
-    <Project Path="tools/ToadClash.Bench/ToadClash.Bench.csproj" />
+    <Project Path="tools/ToadClash.Bench/ToadClash.Bench.csproj">
+      <BuildType Solution="Debug.R20|*" Project="Debug" />
+      <Build Solution="Debug.R20|*" Project="false" />
+      <BuildType Solution="Debug.R21|*" Project="Debug" />
+      <Build Solution="Debug.R21|*" Project="false" />
+      <BuildType Solution="Debug.R22|*" Project="Debug" />
+      <Build Solution="Debug.R22|*" Project="false" />
+      <BuildType Solution="Debug.R23|*" Project="Debug" />
+      <Build Solution="Debug.R23|*" Project="false" />
+      <BuildType Solution="Debug.R24|*" Project="Debug" />
+      <Build Solution="Debug.R24|*" Project="false" />
+      <BuildType Solution="Debug.R25|*" Project="Debug" />
+      <Build Solution="Debug.R25|*" Project="false" />
+      <BuildType Solution="Debug.R26|*" Project="Debug" />
+      <Build Solution="Debug.R26|*" Project="false" />
+      <BuildType Solution="Debug.R27|*" Project="Debug" />
+      <Build Solution="Debug.R27|*" Project="false" />
+      <BuildType Solution="Release.R20|*" Project="Release" />
+      <Build Solution="Release.R20|*" Project="false" />
+      <BuildType Solution="Release.R21|*" Project="Release" />
+      <Build Solution="Release.R21|*" Project="false" />
+      <BuildType Solution="Release.R22|*" Project="Release" />
+      <Build Solution="Release.R22|*" Project="false" />
+      <BuildType Solution="Release.R23|*" Project="Release" />
+      <Build Solution="Release.R23|*" Project="false" />
+      <BuildType Solution="Release.R24|*" Project="Release" />
+      <Build Solution="Release.R24|*" Project="false" />
+      <BuildType Solution="Release.R25|*" Project="Release" />
+      <Build Solution="Release.R25|*" Project="false" />
+      <BuildType Solution="Release.R26|*" Project="Release" />
+      <Build Solution="Release.R26|*" Project="false" />
+      <BuildType Solution="Release.R27|*" Project="Release" />
+      <Build Solution="Release.R27|*" Project="false" />
+    </Project>
+    <Project Path="tools/ToadClash.DevAddin/ToadClash.DevAddin.csproj">
+      <BuildType Solution="Debug|*" Project="Debug.R22" />
+      <Build Solution="Debug|*" Project="false" />
+      <BuildType Solution="Debug.R20|*" Project="Debug.R22" />
+      <Build Solution="Debug.R20|*" Project="false" />
+      <BuildType Solution="Debug.R21|*" Project="Debug.R22" />
+      <Build Solution="Debug.R21|*" Project="false" />
+      <BuildType Solution="Debug.R23|*" Project="Debug.R22" />
+      <Build Solution="Debug.R23|*" Project="false" />
+      <BuildType Solution="Debug.R24|*" Project="Debug.R22" />
+      <Build Solution="Debug.R24|*" Project="false" />
+      <BuildType Solution="Debug.R25|*" Project="Debug.R22" />
+      <Build Solution="Debug.R25|*" Project="false" />
+      <BuildType Solution="Debug.R26|*" Project="Debug.R22" />
+      <Build Solution="Debug.R26|*" Project="false" />
+      <BuildType Solution="Debug.R27|*" Project="Debug.R22" />
+      <Build Solution="Debug.R27|*" Project="false" />
+      <BuildType Solution="Release|*" Project="Release.R22" />
+      <Build Solution="Release|*" Project="false" />
+      <BuildType Solution="Release.R20|*" Project="Release.R22" />
+      <Build Solution="Release.R20|*" Project="false" />
+      <BuildType Solution="Release.R21|*" Project="Release.R22" />
+      <Build Solution="Release.R21|*" Project="false" />
+      <BuildType Solution="Release.R23|*" Project="Release.R22" />
+      <Build Solution="Release.R23|*" Project="false" />
+      <BuildType Solution="Release.R24|*" Project="Release.R22" />
+      <Build Solution="Release.R24|*" Project="false" />
+      <BuildType Solution="Release.R25|*" Project="Release.R22" />
+      <Build Solution="Release.R25|*" Project="false" />
+      <BuildType Solution="Release.R26|*" Project="Release.R22" />
+      <Build Solution="Release.R26|*" Project="false" />
+      <BuildType Solution="Release.R27|*" Project="Release.R22" />
+      <Build Solution="Release.R27|*" Project="false" />
+    </Project>
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Alexpivo394.Revit.Clash.Tests/Alexpivo394.Revit.Clash.Tests.csproj" />
+    <Project Path="tests/Alexpivo394.Revit.Clash.Tests/Alexpivo394.Revit.Clash.Tests.csproj">
+      <BuildType Solution="Debug.R20|*" Project="Debug" />
+      <Build Solution="Debug.R20|*" Project="false" />
+      <BuildType Solution="Debug.R21|*" Project="Debug" />
+      <Build Solution="Debug.R21|*" Project="false" />
+      <BuildType Solution="Debug.R22|*" Project="Debug" />
+      <Build Solution="Debug.R22|*" Project="false" />
+      <BuildType Solution="Debug.R23|*" Project="Debug" />
+      <Build Solution="Debug.R23|*" Project="false" />
+      <BuildType Solution="Debug.R24|*" Project="Debug" />
+      <Build Solution="Debug.R24|*" Project="false" />
+      <BuildType Solution="Debug.R25|*" Project="Debug" />
+      <Build Solution="Debug.R25|*" Project="false" />
+      <BuildType Solution="Debug.R26|*" Project="Debug" />
+      <Build Solution="Debug.R26|*" Project="false" />
+      <BuildType Solution="Debug.R27|*" Project="Debug" />
+      <Build Solution="Debug.R27|*" Project="false" />
+      <BuildType Solution="Release.R20|*" Project="Release" />
+      <Build Solution="Release.R20|*" Project="false" />
+      <BuildType Solution="Release.R21|*" Project="Release" />
+      <Build Solution="Release.R21|*" Project="false" />
+      <BuildType Solution="Release.R22|*" Project="Release" />
+      <Build Solution="Release.R22|*" Project="false" />
+      <BuildType Solution="Release.R23|*" Project="Release" />
+      <Build Solution="Release.R23|*" Project="false" />
+      <BuildType Solution="Release.R24|*" Project="Release" />
+      <Build Solution="Release.R24|*" Project="false" />
+      <BuildType Solution="Release.R25|*" Project="Release" />
+      <Build Solution="Release.R25|*" Project="false" />
+      <BuildType Solution="Release.R26|*" Project="Release" />
+      <Build Solution="Release.R26|*" Project="false" />
+      <BuildType Solution="Release.R27|*" Project="Release" />
+      <Build Solution="Release.R27|*" Project="false" />
+    </Project>
   </Folder>
 </Solution>
