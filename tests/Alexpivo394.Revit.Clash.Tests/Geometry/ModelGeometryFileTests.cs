@@ -118,6 +118,28 @@ public sealed class ModelGeometryFileTests
             ModelGeometryFile.Read(new MemoryStream(bytes, 0, bytes.Length - 10)));
     }
 
+    [Test]
+    public void Read_TamperedMeshOffset_Throws()
+    {
+        var bytes = Serialize(Sample());
+        var blockLengthPosition = (int)ModelGeometryFile.ReadMeshBlockOffset(new MemoryStream(bytes)) - sizeof(long);
+        // Last table entry ends with offset (long) and length (int), right before the block length.
+        var offsetPosition = blockLengthPosition - sizeof(long) - sizeof(int);
+        bytes[offsetPosition] ^= 1;
+
+        Should.Throw<InvalidDataException>(() => ModelGeometryFile.Read(new MemoryStream(bytes)));
+    }
+
+    [Test]
+    public void Read_BlockLengthNotMatchingMeshLengths_Throws()
+    {
+        var bytes = Serialize(Sample());
+        var blockLengthPosition = (int)ModelGeometryFile.ReadMeshBlockOffset(new MemoryStream(bytes)) - sizeof(long);
+        bytes[blockLengthPosition] += 1;
+
+        Should.Throw<InvalidDataException>(() => ModelGeometryFile.Read(new MemoryStream(bytes)));
+    }
+
     private sealed class NonSeekableStream(Stream inner) : Stream
     {
         public override bool CanRead => false;
