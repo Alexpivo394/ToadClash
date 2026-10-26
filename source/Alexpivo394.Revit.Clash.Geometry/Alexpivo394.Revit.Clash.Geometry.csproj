@@ -10,6 +10,10 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="Alexpivo394.Revit.Clash.Tests"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="Polyfill" PrivateAssets="all"/>
         <PackageReference Include="System.IO.Hashing"/>
         <PackageReference Include="System.Numerics.Vectors" Condition="'$(TargetFramework)' == 'net48'"/>
