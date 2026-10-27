@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Text.Json;
 using Alexpivo394.Revit.Clash.Engine;
 using Alexpivo394.Revit.Clash.Geometry;
@@ -30,18 +31,15 @@ public sealed record BenchReport(
 
     /// <summary>
     ///     Читает модели части из каталога (<c>*.tcg</c> с парным <c>*.tcp</c> и <c>config.json</c>), запускает движок и
-    ///     замеряет время. Раздел берётся из <c>model-disciplines.json</c> по ModelKey заголовка.
-    ///     Без явной записи допустим ключ раздела или ключ вида «раздел-номер» из синтетики.
+    ///     замеряет время. Раздел берётся из <c>model-disciplines.json</c> по ModelKey заголовка: из корня и из каталогов
+    ///     слепков. Без явной записи допустим ключ раздела или ключ вида «раздел-номер» из синтетики.
+    ///     Если задан <paramref name="pairs"/>, туда пишется таблица найденных пар через табуляцию.
     /// </summary>
-    public static BenchReport Run(string directory, int threads, TextWriter diagnostics)
+    public static BenchReport Run(string directory, int threads, TextWriter diagnostics, TextWriter? pairs = null)
     {
         var total = Stopwatch.StartNew();
         var config = ConfigurationJson.Deserialize(File.ReadAllText(Path.Combine(directory, "config.json")));
-        var mappingPath = Path.Combine(directory, "model-disciplines.json");
-        var mapping = File.Exists(mappingPath)
-            ? JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(mappingPath))
-                ?? throw new InvalidDataException("model-disciplines.json должен содержать объект ключ модели → раздел.")
-            : new Dictionary<string, string>(StringComparer.Ordinal);
+        var mapping = ReadMapping(directory);
         var disciplines = config.Sets.Select(set => set.Discipline)
             .Concat(config.Matrix.SelectMany(cell => new[] { cell.DisciplineA, cell.DisciplineB }))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -77,6 +75,8 @@ public sealed record BenchReport(
         foreach (var group in result.Hits.GroupBy(h => DisciplinePair(modelDisciplines[h.A.ModelKey], modelDisciplines[h.B.ModelKey])).OrderByDescending(g => g.Count()).Take(12))
             diagnostics.WriteLine($"  {group.Key.Item1} x {group.Key.Item2}: {group.Count()}");
 
+        if (pairs is not null) WritePairs(pairs, result.Hits, inputs);
+
         const long mb = 1024 * 1024;
         return new BenchReport(
             result.Stats.Elements,
@@ -91,15 +91,57 @@ public sealed record BenchReport(
             Math.Round(load.TotalSeconds, 3));
     }
 
-    private static IEnumerable<string> EnumerateGeometry(string directory)
+    /// <summary>Объединяет все model-disciplines.json каталога и слепков; разные разделы одного ключа - ошибка.</summary>
+    private static Dictionary<string, string> ReadMapping(string directory)
+    {
+        var mapping = new Dictionary<string, string>(StringComparer.Ordinal);
+        var files = EnumerateFolders(directory).Select(folder => Path.Combine(folder, "model-disciplines.json")).Where(File.Exists);
+        foreach (var file in files)
+        {
+            var entries = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(file))
+                ?? throw new InvalidDataException($"{file} должен содержать объект ключ модели → раздел.");
+            foreach (var (key, discipline) in entries)
+            {
+                if (mapping.TryGetValue(key, out var existing) && !string.Equals(existing, discipline, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException($"Для модели '{key}' заданы разные разделы: '{existing}' и '{discipline}'.");
+                mapping[key] = discipline;
+            }
+        }
+
+        return mapping;
+    }
+
+    private static void WritePairs(TextWriter output, IReadOnlyList<ClashHit> hits, ModelInput[] inputs)
+    {
+        var infos = inputs
+            .SelectMany(input => input.Geometry.Elements.Select(element => (Ref: new ElementRef(input.Geometry.Header.ModelKey, element.Info.UniqueId), element.Info)))
+            .ToDictionary(entry => entry.Ref, entry => entry.Info);
+        output.WriteLine("modelA\tuniqueIdA\tcategoryA\tmodelB\tuniqueIdB\tcategoryB\telementIdA\telementIdB\tdepthMm\tx\ty\tz");
+        foreach (var hit in hits.OrderBy(hit => hit.A).ThenBy(hit => hit.B))
+        {
+            var a = infos[hit.A];
+            var b = infos[hit.B];
+            output.WriteLine(string.Join("\t",
+                hit.A.ModelKey, hit.A.UniqueId, a.Category, hit.B.ModelKey, hit.B.UniqueId, b.Category,
+                a.ElementId.ToString(CultureInfo.InvariantCulture), b.ElementId.ToString(CultureInfo.InvariantCulture),
+                hit.DepthMm.ToString("0.0", CultureInfo.InvariantCulture), hit.PointX.ToString("0", CultureInfo.InvariantCulture),
+                hit.PointY.ToString("0", CultureInfo.InvariantCulture), hit.PointZ.ToString("0", CultureInfo.InvariantCulture)));
+        }
+    }
+
+    private static IEnumerable<string> EnumerateGeometry(string directory) =>
+        EnumerateFolders(directory).SelectMany(folder => Directory.EnumerateFiles(folder, "*.tcg"));
+
+    /// <summary>Каталог и вложенные каталоги без незавершённых <c>.pending</c> и точек повторной обработки.</summary>
+    private static IEnumerable<string> EnumerateFolders(string directory)
     {
         if (directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).EndsWith(".pending", StringComparison.OrdinalIgnoreCase)) yield break;
-        foreach (var file in Directory.EnumerateFiles(directory, "*.tcg")) yield return file;
+        yield return directory;
         foreach (var child in Directory.EnumerateDirectories(directory))
         {
             if (child.EndsWith(".pending", StringComparison.OrdinalIgnoreCase)) continue;
             if ((File.GetAttributes(child) & FileAttributes.ReparsePoint) != 0) continue;
-            foreach (var file in EnumerateGeometry(child)) yield return file;
+            foreach (var folder in EnumerateFolders(child)) yield return folder;
         }
     }
 

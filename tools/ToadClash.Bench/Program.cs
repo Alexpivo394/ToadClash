@@ -12,7 +12,7 @@ if (args.Length == 0 || args[0] is not ("synth" or "run"))
     Console.Error.WriteLine("""
         Использование:
           synth --elements 200000 --models 12 --seed 1 [--profile standard|dense] --out <каталог>
-          run --in <каталог> --threads 8
+          run --in <каталог> --threads 8 [--pairs <файл.tsv>]
           identity --old <tcg> --new <tcg>
           navis --report <xml> --left <tcg> --right <tcg> --left-section <раздел> --right-section <раздел> --config <json>
         """);
@@ -52,6 +52,7 @@ if (args[0] == "synth")
     return 0;
 }
 
-var report = BenchReport.Run(Required("in"), Number("threads", 0), Console.Error);
+using var pairs = options.TryGetValue("pairs", out var pairsPath) ? new StreamWriter(pairsPath) : null;
+var report = BenchReport.Run(Required("in"), Number("threads", 0), Console.Error, pairs);
 Console.WriteLine(report.ToJson());
 return 0;
