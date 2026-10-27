@@ -104,10 +104,11 @@ public static class GeometryExtractor
     /// <summary>Видимые на виде экземпляры; вложенные общие семейства добавляются отдельными элементами.</summary>
     private static List<Element> CollectVisible(Document doc, View3D view, ICollection<BuiltInCategory> categories)
     {
-        var categoryIds = new HashSet<ElementId>(categories.Select(category => category.ToElementId()));
+        var candidates = doc.CollectElements(view).WhereElementIsNotElementType().OfCategories(categories).ToList();
+        var visibleIds = new HashSet<ElementId>(candidates.Select(element => element.Id));
         var seen = new HashSet<ElementId>();
         var result = new List<Element>();
-        foreach (var element in doc.CollectElements(view).WhereElementIsNotElementType().OfCategories(categories))
+        foreach (var element in candidates)
             Add(element);
         return result;
 
@@ -119,8 +120,7 @@ public static class GeometryExtractor
 
             foreach (var id in instance.GetSubComponentIds())
             {
-                if (id.ToElement(doc) is { Category: { } category } nested &&
-                    categoryIds.Contains(category.Id) && !nested.IsHidden(view))
+                if (visibleIds.Contains(id) && id.ToElement(doc) is Element nested && !nested.IsHidden(view))
                     Add(nested);
             }
         }

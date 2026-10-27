@@ -5,7 +5,7 @@ namespace Alexpivo394.Revit.Clash.Revit;
 
 /// <summary>
 ///     Читает параметры экземпляра и его типа. Параметры типа читаются один раз на тип.
-///     Длины - в мм, прочие вещественные - во внутренних единицах Revit, целые - как число;
+///     Длины - в мм, прочие размерные вещественные - в единицах проекта, целые - как число;
 ///     для ссылки на элемент текст - имя элемента, числа нет.
 /// </summary>
 internal sealed class ParameterReader
@@ -55,10 +55,32 @@ internal sealed class ParameterReader
     private static double? Number(Parameter parameter, Definition definition) => parameter.StorageType switch
     {
         StorageType.Double when IsLength(definition) => parameter.AsDouble().ToMillimeters(),
-        StorageType.Double => parameter.AsDouble(),
+        StorageType.Double => ProjectNumber(parameter, definition),
         StorageType.Integer => parameter.AsInteger(),
         _ => null
     };
+
+    private static double ProjectNumber(Parameter parameter, Definition definition)
+    {
+        var value = parameter.AsDouble();
+#if REVIT2022_OR_GREATER
+        var spec = definition.GetDataType();
+        if (!UnitUtils.IsMeasurableSpec(spec)) return value;
+#elif REVIT2021_OR_GREATER
+        var spec = definition.GetSpecTypeId();
+        if (!UnitUtils.IsSpec(spec)) return value;
+#else
+        var spec = definition.UnitType;
+        if (!UnitUtils.IsValidUnitType(spec)) return value;
+#endif
+        using var units = parameter.Element.Document.GetUnits();
+        using var format = units.GetFormatOptions(spec);
+#if REVIT2021_OR_GREATER
+        return UnitUtils.ConvertFromInternalUnits(value, format.GetUnitTypeId());
+#else
+        return UnitUtils.ConvertFromInternalUnits(value, format.DisplayUnits);
+#endif
+    }
 
     private static bool IsLength(Definition definition) =>
 #if REVIT2022_OR_GREATER

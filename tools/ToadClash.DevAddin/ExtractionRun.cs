@@ -7,8 +7,8 @@ using Alexpivo394.Revit.Clash.Revit;
 namespace ToadClash.DevAddin;
 
 /// <summary>
-///     Выгрузка модели в файлы рядом с ней: <c>&lt;модель&gt;.tcg</c>, <c>&lt;модель&gt;.tcp</c> и строка итога в
-///     <c>&lt;модель&gt;.toadclash.log</c>. Документ не изменяется.
+///     Выгрузка модели в новый каталог рядом с ней: model.tcg, model.tcp и model.toadclash.log.
+///     Каталог публикуется после записи обоих файлов. Документ не изменяется.
 /// </summary>
 public static class ExtractionRun
 {
@@ -16,15 +16,16 @@ public static class ExtractionRun
     public static string Run(Document document, View3D view)
     {
         var modelName = Path.GetFileNameWithoutExtension(document.PathName);
-        var basePath = Path.Combine(Path.GetDirectoryName(document.PathName)!, modelName);
+        var snapshotDirectory = Path.Combine(Path.GetDirectoryName(document.PathName)!,
+            modelName + ".toadclash-" + Guid.NewGuid().ToString("N"));
+        var basePath = Path.Combine(snapshotDirectory, "model");
         var visible = CountVisibleModelElements(document, view);
 
         var clock = Stopwatch.StartNew();
         var (geometry, parameters) = GeometryExtractor.Extract(document, new ExtractOptions(modelName, view.Name), CancellationToken.None);
         var extractSeconds = clock.Elapsed.TotalSeconds;
 
-        using (var stream = File.Create(basePath + ".tcg")) ModelGeometryFile.Write(stream, geometry);
-        using (var stream = File.Create(basePath + ".tcp")) ModelParametersFile.Write(stream, parameters);
+        ModelSnapshotFiles.Write(snapshotDirectory, geometry, parameters);
         var totalSeconds = clock.Elapsed.TotalSeconds;
 
         bool complete;
@@ -47,7 +48,7 @@ public static class ExtractionRun
             totalSeconds,
             complete);
         File.AppendAllText(basePath + ".toadclash.log", summary + Environment.NewLine);
-        return summary;
+        return summary + Environment.NewLine + snapshotDirectory;
     }
 
     /// <summary>Видимые на виде экземпляры модельных категорий, для сверки с числом выгруженных элементов.</summary>
