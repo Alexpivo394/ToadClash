@@ -13,6 +13,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Polyfill" PrivateAssets="all"/>
         <PackageReference Include="Nice3point.Revit.Toolkit"/>
         <PackageReference Include="Nice3point.Revit.Extensions"/>
         <PackageReference Include="Nice3point.Revit.Api.RevitAPI"/>
@@ -21,6 +22,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\source\Alexpivo394.Revit.Clash.Revit\Alexpivo394.Revit.Clash.Revit.csproj"/>
+        <ProjectReference Include="..\..\source\Alexpivo394.Revit.Clash.Rules\Alexpivo394.Revit.Clash.Rules.csproj"/>
     </ItemGroup>
 
 </Project>
