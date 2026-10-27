@@ -31,8 +31,9 @@ public static class NavisCompare
             throw new InvalidDataException("Для проверки модели самой с собой укажите один слепок и один раздел.");
         if (configuration.CellFor(left.Discipline, right.Discipline) is not { Enabled: true })
             throw new InvalidDataException("В конфигурации не включена пара разделов отчёта.");
-        var leftIds = left.Geometry.Elements.ToDictionary(element => element.Info.ElementId, element => element.Info.UniqueId);
-        var rightIds = right.Geometry.Elements.ToDictionary(element => element.Info.ElementId, element => element.Info.UniqueId);
+        ModelInput[] sides = ReferenceEquals(left, right) ? [left] : [left, right];
+        var lookups = sides.Select(side => side.Geometry.Elements.ToDictionary(element => element.Info.ElementId)).ToArray();
+        var scale = UnitsToMillimeters((string?)document.Root?.Attribute("units"));
         var navis = new HashSet<ComparisonPair>();
         var unmapped = new List<string>();
         var resolved = 0;
@@ -41,14 +42,31 @@ public static class NavisCompare
             if (string.Equals((string?)result.Attribute("status"), "resolved", StringComparison.OrdinalIgnoreCase)) { resolved++; continue; }
             var objects = result.Element("clashobjects")?.Elements("clashobject").ToArray() ?? [];
             if (objects.Length != 2) throw new InvalidDataException("Запись отчёта не содержит два clashobject.");
-            var leftId = ReadId(objects[0]);
-            var rightId = ReadId(objects[1]);
-            if (!leftIds.TryGetValue(leftId, out var leftUnique) || !rightIds.TryGetValue(rightId, out var rightUnique))
+            var point = ReadPoint(result, scale);
+            var first = Resolve(ReadId(objects[0]), 0);
+            var second = Resolve(ReadId(objects[1]), 1);
+            if (first is null || second is null)
             {
-                unmapped.Add($"{(string?)result.Attribute("name")}: {left.Geometry.Header.ModelKey}/{leftId} × {right.Geometry.Header.ModelKey}/{rightId}");
+                unmapped.Add($"{(string?)result.Attribute("name")}: {ReadId(objects[0])} × {ReadId(objects[1])}");
                 continue;
             }
-            navis.Add(Pair(new(left.Geometry.Header.ModelKey, leftUnique), new(right.Geometry.Header.ModelKey, rightUnique)));
+            navis.Add(Pair(first.Value, second.Value));
+
+            // Отчёт не хранит файл-источник объекта, а ElementId разных моделей могут совпасть: при двух кандидатах
+            // берётся элемент, ближайший к точке коллизии; без точки или при равенстве - по порядку объектов в записи.
+            ElementRef? Resolve(long id, int position)
+            {
+                var candidates = Enumerable.Range(0, sides.Length)
+                    .Where(index => lookups[index].ContainsKey(id))
+                    .Select(index => (Side: index, Element: lookups[index][id]))
+                    .ToArray();
+                if (candidates.Length == 0) return null;
+                var chosen = candidates.Length == 1 ? candidates[0]
+                    : point is null ? candidates.Single(candidate => candidate.Side == position)
+                    : candidates.OrderBy(candidate => Distance(sides[candidate.Side].Geometry.Header, candidate.Element.Bounds, point.Value))
+                        .ThenBy(candidate => candidate.Side == position ? 0 : 1).First();
+                return new ElementRef(sides[chosen.Side].Geometry.Header.ModelKey, chosen.Element.Info.UniqueId);
+            }
         }
         ModelInput[] models = left.Geometry.Header.ModelKey == right.Geometry.Header.ModelKey ? [left] : [left, right];
         var hits = new ClashEngine(new EngineOptions(8)).Run(models, configuration, CancellationToken.None).Hits
@@ -102,13 +120,45 @@ public static class NavisCompare
         }
     }
 
+    private static double UnitsToMillimeters(string? units) => units switch
+    {
+        null or "m" => 1000,
+        "mm" => 1,
+        "cm" => 10,
+        "ft" => 304.8,
+        "in" => 25.4,
+        _ => throw new InvalidDataException($"Неизвестные единицы отчёта: {units}.")
+    };
+
+    private static (double X, double Y, double Z)? ReadPoint(XElement result, double scale)
+    {
+        if (result.Element("clashpoint")?.Element("pos3f") is not { } position) return null;
+        double Read(string name) => double.Parse((string)position.Attribute(name)!, CultureInfo.InvariantCulture) * scale;
+        return (Read("x"), Read("y"), Read("z"));
+    }
+
+    /// <summary>Расстояние от точки (мм, общая система) до габарита элемента в абсолютных координатах.</summary>
+    private static double Distance(ModelHeader header, Aabb bounds, (double X, double Y, double Z) point)
+    {
+        static double Axis(double value, double min, double max) => value < min ? min - value : value > max ? value - max : 0;
+        var dx = Axis(point.X, bounds.Min.X + header.OriginX, bounds.Max.X + header.OriginX);
+        var dy = Axis(point.Y, bounds.Min.Y + header.OriginY, bounds.Max.Y + header.OriginY);
+        var dz = Axis(point.Z, bounds.Min.Z + header.OriginZ, bounds.Max.Z + header.OriginZ);
+        return Math.Sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
     private static ComparisonPair Pair(ElementRef first, ElementRef second) => first.CompareTo(second) <= 0 ? new(first, second) : new(second, first);
 
+    /// <summary>
+    ///     ElementId объекта. Smarttag «Id IntegerValue» - Id элемента Revit (сверено по положению на реальных моделях);
+    ///     objectattribute «ID объекта» в отчётах заказчика с ним часто не совпадает и используется только при его отсутствии.
+    /// </summary>
     private static long ReadId(XElement element)
     {
-        var attribute = element.Elements("objectattribute").FirstOrDefault(item => (string?)item.Element("name") is "ID объекта" or "Element ID" or "Object ID");
-        var text = (string?)attribute?.Element("value") ?? element.Descendants("smarttag")
+        var smarttag = element.Descendants("smarttag")
             .Where(tag => (string?)tag.Element("name") == "Id IntegerValue").Select(tag => (string?)tag.Element("value")).FirstOrDefault();
+        var attribute = element.Elements("objectattribute").FirstOrDefault(item => (string?)item.Element("name") is "ID объекта" or "Element ID" or "Object ID");
+        var text = smarttag ?? (string?)attribute?.Element("value");
         return long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id)
             ? id : throw new InvalidDataException("У объекта отчёта нет числового ElementId.");
     }
