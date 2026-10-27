@@ -43,19 +43,22 @@ public static class NavisCompare
             var objects = result.Element("clashobjects")?.Elements("clashobject").ToArray() ?? [];
             if (objects.Length != 2) throw new InvalidDataException("Запись отчёта не содержит два clashobject.");
             var point = ReadPoint(result, scale);
-            var first = Resolve(ReadId(objects[0]), 0);
-            var second = Resolve(ReadId(objects[1]), 1);
+            var firstId = ReadId(objects[0]);
+            var secondId = ReadId(objects[1]);
+            var first = Resolve(firstId, 0);
+            var second = Resolve(secondId, 1);
             if (first is null || second is null)
             {
-                unmapped.Add($"{(string?)result.Attribute("name")}: {ReadId(objects[0])} × {ReadId(objects[1])}");
+                unmapped.Add($"{(string?)result.Attribute("name")}: {firstId?.ToString() ?? "нет ID"} × {secondId?.ToString() ?? "нет ID"}");
                 continue;
             }
             navis.Add(Pair(first.Value, second.Value));
 
             // Отчёт не хранит файл-источник объекта, а ElementId разных моделей могут совпасть: при двух кандидатах
             // берётся элемент, ближайший к точке коллизии; без точки или при равенстве - по порядку объектов в записи.
-            ElementRef? Resolve(long id, int position)
+            ElementRef? Resolve(long? maybeId, int position)
             {
+                if (maybeId is not { } id) return null;
                 var candidates = Enumerable.Range(0, sides.Length)
                     .Where(index => lookups[index].ContainsKey(id))
                     .Select(index => (Side: index, Element: lookups[index][id]))
@@ -120,7 +123,7 @@ public static class NavisCompare
         }
     }
 
-    private static double UnitsToMillimeters(string? units) => units switch
+    internal static double UnitsToMillimeters(string? units) => units switch
     {
         null or "m" => 1000,
         "mm" => 1,
@@ -130,7 +133,7 @@ public static class NavisCompare
         _ => throw new InvalidDataException($"Неизвестные единицы отчёта: {units}.")
     };
 
-    private static (double X, double Y, double Z)? ReadPoint(XElement result, double scale)
+    internal static (double X, double Y, double Z)? ReadPoint(XElement result, double scale)
     {
         if (result.Element("clashpoint")?.Element("pos3f") is not { } position) return null;
         double Read(string name) => double.Parse((string)position.Attribute(name)!, CultureInfo.InvariantCulture) * scale;
@@ -138,7 +141,7 @@ public static class NavisCompare
     }
 
     /// <summary>Расстояние от точки (мм, общая система) до габарита элемента в абсолютных координатах.</summary>
-    private static double Distance(ModelHeader header, Aabb bounds, (double X, double Y, double Z) point)
+    internal static double Distance(ModelHeader header, Aabb bounds, (double X, double Y, double Z) point)
     {
         static double Axis(double value, double min, double max) => value < min ? min - value : value > max ? value - max : 0;
         var dx = Axis(point.X, bounds.Min.X + header.OriginX, bounds.Max.X + header.OriginX);
@@ -147,19 +150,19 @@ public static class NavisCompare
         return Math.Sqrt(dx * dx + dy * dy + dz * dz);
     }
 
-    private static ComparisonPair Pair(ElementRef first, ElementRef second) => first.CompareTo(second) <= 0 ? new(first, second) : new(second, first);
+    internal static ComparisonPair Pair(ElementRef first, ElementRef second) => first.CompareTo(second) <= 0 ? new(first, second) : new(second, first);
 
     /// <summary>
     ///     ElementId объекта. Smarttag «Id IntegerValue» - Id элемента Revit (сверено по положению на реальных моделях);
-    ///     objectattribute «ID объекта» в отчётах заказчика с ним часто не совпадает и используется только при его отсутствии.
+    ///     objectattribute «ID объекта» в отчётах заказчика с ним часто не совпадает и используется только при пустом smarttag.
+    ///     Без числового ID запись считается несопоставленной.
     /// </summary>
-    private static long ReadId(XElement element)
+    internal static long? ReadId(XElement element)
     {
         var smarttag = element.Descendants("smarttag")
             .Where(tag => (string?)tag.Element("name") == "Id IntegerValue").Select(tag => (string?)tag.Element("value")).FirstOrDefault();
         var attribute = element.Elements("objectattribute").FirstOrDefault(item => (string?)item.Element("name") is "ID объекта" or "Element ID" or "Object ID");
-        var text = smarttag ?? (string?)attribute?.Element("value");
-        return long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id)
-            ? id : throw new InvalidDataException("У объекта отчёта нет числового ElementId.");
+        var text = string.IsNullOrWhiteSpace(smarttag) ? (string?)attribute?.Element("value") : smarttag;
+        return long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : null;
     }
 }

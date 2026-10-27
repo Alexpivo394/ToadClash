@@ -59,6 +59,22 @@ public sealed class NavisCompareTests
     }
 
     [Test]
+    public void Compare_EmptySmarttag_FallsBackToObjectAttribute_MissingIdIsUnmapped()
+    {
+        var (left, right, configuration) = OverlappingModels();
+        var emptyTag = Object(10, 0);
+        emptyTag.Descendants("value").Last().Value = "";
+        var noId = Object(null, 0);
+        noId.Descendants("value").Last().Value = "";
+        var document = Report(Result(null, emptyTag, Object(null, 20)), Result(null, noId, Object(null, 20)));
+
+        var report = NavisCompare.Compare(document, left, right, configuration);
+
+        report.Common.Count.ShouldBe(1);
+        report.Unmapped.Count.ShouldBe(1);
+    }
+
+    [Test]
     public void Compare_BothObjectsInLeftModel_MapsPairInsideLeftModel()
     {
         var (left, right, configuration) = OverlappingModels(extraLeft: true);
