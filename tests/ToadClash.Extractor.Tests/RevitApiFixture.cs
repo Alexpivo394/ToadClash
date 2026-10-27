@@ -8,10 +8,11 @@ namespace Autodesk.Revit.DB
 {
     public enum StorageType { None, Double, Integer, String, ElementId }
     public enum ParameterType { Length, Other }
-    public enum UnitType { UT_Undefined, UT_Length, UT_Area, UT_Volume, UT_Angle, UT_Temperature, UT_Number }
-    public enum DisplayUnitType { DUT_MILLIMETERS, DUT_SQUARE_METERS, DUT_CUBIC_METERS, DUT_DEGREES, DUT_CELSIUS, DUT_GENERAL }
+    public enum UnitType { UT_Undefined, UT_Length, UT_PipeSize, UT_Area, UT_Volume, UT_Angle, UT_Temperature, UT_Number }
+    public enum DisplayUnitType { DUT_MILLIMETERS, DUT_CENTIMETERS, DUT_SQUARE_METERS, DUT_CUBIC_METERS, DUT_DEGREES, DUT_CELSIUS, DUT_GENERAL }
     public sealed record ForgeTypeId(UnitType Value);
     public static class SpecTypeId { public static ForgeTypeId Length { get; } = new(UnitType.UT_Length); }
+    public static class UnitTypeId { public static DisplayUnitType Millimeters => DisplayUnitType.DUT_MILLIMETERS; }
     public sealed class Definition
     {
         public string Name { get; init; } = "Параметр";
@@ -54,9 +55,14 @@ namespace Autodesk.Revit.DB
         public static bool IsValidUnitType(UnitType type) => type != UnitType.UT_Undefined;
         public static bool IsSpec(ForgeTypeId type) => IsValidUnitType(type.Value);
         public static bool IsMeasurableSpec(ForgeTypeId type) => IsSpec(type);
+        // Размеры труб, как и длины, допускают мм; остальные величины - нет.
+        public static IList<DisplayUnitType> GetValidDisplayUnits(UnitType type) =>
+            type is UnitType.UT_Length or UnitType.UT_PipeSize ? [DisplayUnitType.DUT_MILLIMETERS, DisplayUnitType.DUT_CENTIMETERS] : [DisplayUnitType.DUT_GENERAL];
+        public static IList<DisplayUnitType> GetValidUnits(ForgeTypeId type) => GetValidDisplayUnits(type.Value);
         public static double ConvertFromInternalUnits(double value, DisplayUnitType unit) => unit switch
         {
             DisplayUnitType.DUT_MILLIMETERS => value * 304.8,
+            DisplayUnitType.DUT_CENTIMETERS => value * 30.48,
             DisplayUnitType.DUT_SQUARE_METERS => value * 0.09290304,
             DisplayUnitType.DUT_CUBIC_METERS => value * 0.028316846592,
             DisplayUnitType.DUT_DEGREES => value * 180 / Math.PI,

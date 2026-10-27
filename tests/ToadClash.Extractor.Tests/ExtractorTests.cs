@@ -12,6 +12,7 @@ public sealed class ExtractorTests
     [Arguments(UnitType.UT_Angle, DisplayUnitType.DUT_DEGREES, Math.PI, 180)]
     [Arguments(UnitType.UT_Temperature, DisplayUnitType.DUT_CELSIUS, 300, 26.85)]
     [Arguments(UnitType.UT_Length, DisplayUnitType.DUT_GENERAL, 1, 304.8)]
+    [Arguments(UnitType.UT_PipeSize, DisplayUnitType.DUT_CENTIMETERS, 1, 304.8)]
     [Arguments(UnitType.UT_Number, DisplayUnitType.DUT_GENERAL, 2.5, 2.5)]
     [Arguments(UnitType.UT_Undefined, DisplayUnitType.DUT_GENERAL, 3.5, 3.5)]
     public void NumbersUseProjectUnitsExceptLength(UnitType spec, DisplayUnitType unit, double value, double expected)

@@ -5,12 +5,17 @@ namespace Alexpivo394.Revit.Clash.Revit;
 
 /// <summary>
 ///     Читает параметры экземпляра и его типа. Параметры типа читаются один раз на тип.
-///     Длины - в мм, прочие размерные вещественные - в единицах проекта, целые - как число;
-///     для ссылки на элемент текст - имя элемента, числа нет.
+///     Длины и другие величины, измеряемые в мм (размеры труб, воздуховодов, лотков), - в мм, прочие размерные
+///     вещественные - в единицах проекта, целые - как число; для ссылки на элемент текст - имя элемента, числа нет.
 /// </summary>
 internal sealed class ParameterReader
 {
     private readonly Dictionary<ElementId, IReadOnlyList<ParameterValue>> _typeValues = new();
+#if REVIT2021_OR_GREATER
+    private readonly Dictionary<ForgeTypeId, bool> _lengthSpecs = new();
+#else
+    private readonly Dictionary<UnitType, bool> _lengthSpecs = new();
+#endif
 
     /// <summary>Параметры элемента, затем параметры его типа. Параметры без значения пропускаются.</summary>
     public IReadOnlyList<ParameterValue> Read(Element element)
@@ -29,7 +34,7 @@ internal sealed class ParameterReader
         return values;
     }
 
-    private static List<ParameterValue> ReadOwn(Element element)
+    private List<ParameterValue> ReadOwn(Element element)
     {
         var values = new List<ParameterValue>();
         foreach (Parameter parameter in element.Parameters)
@@ -52,7 +57,7 @@ internal sealed class ParameterReader
         return parameter.AsValueString() ?? parameter.AsString();
     }
 
-    private static double? Number(Parameter parameter, Definition definition) => parameter.StorageType switch
+    private double? Number(Parameter parameter, Definition definition) => parameter.StorageType switch
     {
         StorageType.Double when IsLength(definition) => parameter.AsDouble().ToMillimeters(),
         StorageType.Double => ProjectNumber(parameter, definition),
@@ -82,12 +87,23 @@ internal sealed class ParameterReader
 #endif
     }
 
-    private static bool IsLength(Definition definition) =>
+    /// <summary>Величина допускает мм: длина или размер сечения MEP. Ответ кешируется по типу величины.</summary>
+    private bool IsLength(Definition definition)
+    {
 #if REVIT2022_OR_GREATER
-        definition.GetDataType() == SpecTypeId.Length;
+        var spec = definition.GetDataType();
+        if (_lengthSpecs.TryGetValue(spec, out var isLength)) return isLength;
+        isLength = UnitUtils.IsMeasurableSpec(spec) && UnitUtils.GetValidUnits(spec).Contains(UnitTypeId.Millimeters);
 #elif REVIT2021_OR_GREATER
-        definition.GetSpecTypeId() == SpecTypeId.Length;
+        var spec = definition.GetSpecTypeId();
+        if (_lengthSpecs.TryGetValue(spec, out var isLength)) return isLength;
+        isLength = UnitUtils.IsSpec(spec) && UnitUtils.GetValidUnits(spec).Contains(UnitTypeId.Millimeters);
 #else
-        definition.ParameterType == ParameterType.Length;
+        var spec = definition.UnitType;
+        if (_lengthSpecs.TryGetValue(spec, out var isLength)) return isLength;
+        isLength = UnitUtils.IsValidUnitType(spec) && UnitUtils.GetValidDisplayUnits(spec).Contains(DisplayUnitType.DUT_MILLIMETERS);
 #endif
+        _lengthSpecs.Add(spec, isLength);
+        return isLength;
+    }
 }
