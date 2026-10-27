@@ -4,6 +4,8 @@ using ToadClash.Bench;
 
 if (args.Length > 0 && args[0] == "identity")
     return IdentityCommand.Run(args[1..], Console.Out, Console.Error);
+if (args.Length > 0 && args[0] == "navis")
+    return NavisCompare.Run(args[1..], Console.Out, Console.Error);
 
 if (args.Length == 0 || args[0] is not ("synth" or "run"))
 {
@@ -12,6 +14,7 @@ if (args.Length == 0 || args[0] is not ("synth" or "run"))
           synth --elements 200000 --models 12 --seed 1 [--profile standard|dense] --out <каталог>
           run --in <каталог> --threads 8
           identity --old <tcg> --new <tcg>
+          navis --report <xml> --left <tcg> --right <tcg> --left-section <раздел> --right-section <раздел> --config <json>
         """);
     return 2;
 }
