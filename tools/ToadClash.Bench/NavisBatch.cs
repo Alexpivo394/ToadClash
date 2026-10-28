@@ -132,7 +132,7 @@ public static class NavisBatch
                     throw new InvalidDataException($"Проверка {name}: правило {(string?)rule.Attribute("creator")} не поддерживается.");
                 var sets = rule.Descendants("ruleparam")
                     .Select(param => (string)param.Descendants("name").Single().Attribute("internal")!)
-                    .Select(path => Members(path.Replace('\n', '/')))
+                    .Select(RuleMembers)
                     .ToArray();
                 if (sets.Length != 2) throw new InvalidDataException($"Проверка {name}: правило без двух наборов.");
                 result.Add((sets[0], sets[1]));
@@ -141,11 +141,15 @@ public static class NavisBatch
             return result;
         }
 
-        HashSet<ElementRef> Members(string path)
+        // Папка и набор разделены переводом строки, но разбор XML-атрибута заменяет его пробелом,
+        // а имена наборов сами содержат пробелы, поэтому путь ищется среди известных наборов.
+        HashSet<ElementRef> RuleMembers(string internalName)
         {
-            var members = new HashSet<ElementRef>();
-            foreach (var set in selection.Resolve(path)) members.UnionWith(membership.Of(set));
-            return members;
+            var normalized = internalName.Replace('\r', ' ').Replace('\n', ' ');
+            var sets = selection.Sets.Where(set => set.Path.Replace('/', ' ') == normalized).ToArray();
+            if (sets.Length != 1)
+                throw new InvalidDataException($"Проверка {name}: набор правила «{internalName}» найден {sets.Length} раз.");
+            return membership.Of(sets[0]);
         }
     }
 

@@ -48,6 +48,23 @@ public sealed class NavisBatchTests
         result.RuleIgnored.ShouldBe(1);
     }
 
+    [Test]
+    public void Compare_IgnoreRuleReadFromFile_NewlineInAttributeBecomesSpace()
+    {
+        var (models, selection) = Scene();
+        var test = Test("PT - KR", "ПТ", "КР");
+        test.Element("rules")!.Add(new XElement("rule", new XAttribute("enabled", "1"),
+            new XAttribute("creator", "LcOdpClashIgnoreSpecSelectionSetsPlugin"),
+            new XElement("ruleparams", RuleParam("КР\nКР_Стены"), RuleParam("ПТ\nПТ_Трубы"))));
+        // В файле перевод строки записан в атрибуте как есть, и разбор XML заменяет его пробелом.
+        var fromFile = XElement.Parse(test.ToString().Replace("&#xA;", "\n"));
+
+        var result = NavisBatch.Compare(fromFile, selection, new NavisMembership(models), null);
+
+        result.OnlyOurs.ShouldBeEmpty();
+        result.RuleIgnored.ShouldBe(1);
+    }
+
     private static (IReadOnlyList<ModelInput> Models, NavisSelection Selection) Scene()
     {
         var pipe = Model("DON_PT", "pipe", 10, "Трубы", Vector3.Zero);
