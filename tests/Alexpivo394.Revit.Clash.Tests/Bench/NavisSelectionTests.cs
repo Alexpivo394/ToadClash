@@ -23,6 +23,24 @@ public sealed class NavisSelectionTests
     }
 
     [Test]
+    public void Resolve_SlashInSetNameEscapedInLocator_FindsSet()
+    {
+        var sets = NavisSelection.Parse(Root(Folder("АР", Set("АР_Двери/Окна", Condition("equals", 10, "LcRevitPropertyElementCategory", "Двери")))));
+
+        sets.Resolve("lcop_selection_set_tree/АР/АР_Двери?1Окна").Single().Path.ShouldBe("АР/АР_Двери/Окна");
+        sets.Resolve("lcop_selection_set_tree/АР").Single().Path.ShouldBe("АР/АР_Двери/Окна");
+    }
+
+    [Test]
+    public void Resolve_UnknownLocator_Throws()
+    {
+        var sets = NavisSelection.Parse(Root(Folder("АР", Set("АР_Стены", Condition("equals", 10, "LcRevitPropertyElementCategory", "Стены")))));
+
+        Should.Throw<InvalidDataException>(() => sets.Resolve("lcop_selection_set_tree/АР/АР_Двери"));
+        Should.Throw<InvalidDataException>(() => sets.Resolve("lcop_selection_set_tree/А"));
+    }
+
+    [Test]
     public void Matches_AndWithinGroup_OrBetweenGroups_NegationAndSourceFile()
     {
         var set = NavisSelection.Parse(Root(Set("s",

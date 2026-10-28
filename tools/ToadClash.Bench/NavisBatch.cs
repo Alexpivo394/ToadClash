@@ -164,7 +164,7 @@ public static class NavisBatch
         HashSet<ElementRef> RuleMembers(string internalName)
         {
             var normalized = internalName.Replace('\r', ' ').Replace('\n', ' ');
-            var sets = selection.Sets.Where(set => set.Path.Replace('/', ' ') == normalized).ToArray();
+            var sets = selection.Sets.Where(set => string.Join(" ", set.Segments) == normalized).ToArray();
             if (sets.Length != 1)
                 throw new InvalidDataException($"Проверка {name}: набор правила «{internalName}» найден {sets.Length} раз.");
             return membership.Of(sets[0]);

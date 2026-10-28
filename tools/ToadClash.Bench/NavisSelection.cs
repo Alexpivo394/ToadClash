@@ -12,14 +12,17 @@ public sealed class NavisSet
 {
     private readonly IReadOnlyList<IReadOnlyList<NavisCondition>> _groups;
 
-    internal NavisSet(string path, IReadOnlyList<IReadOnlyList<NavisCondition>> groups)
+    internal NavisSet(IReadOnlyList<string> segments, IReadOnlyList<IReadOnlyList<NavisCondition>> groups)
     {
-        Path = path;
+        Segments = segments;
         _groups = groups;
     }
 
-    /// <summary>Путь в дереве наборов через «/», без префикса lcop_selection_set_tree.</summary>
-    public string Path { get; }
+    /// <summary>Имена папок и набора в дереве наборов; имена сами могут содержать «/».</summary>
+    public IReadOnlyList<string> Segments { get; }
+
+    /// <summary>Путь в дереве наборов через «/» для вывода.</summary>
+    public string Path => string.Join("/", Segments);
 
     /// <summary>Входит ли элемент в набор.</summary>
     public bool Matches(NavisItem item) => _groups.Any(group => group.All(condition => condition.Matches(item)));
@@ -44,32 +47,36 @@ public sealed class NavisSelection
     public static NavisSelection Parse(XElement selectionSets)
     {
         var sets = new List<NavisSet>();
-        Walk(selectionSets, "");
+        Walk(selectionSets, []);
         return new NavisSelection(sets);
 
-        void Walk(XElement node, string prefix)
+        void Walk(XElement node, string[] prefix)
         {
             foreach (var child in node.Elements())
             {
-                var path = prefix + (string?)child.Attribute("name");
-                if (child.Name == "viewfolder") Walk(child, path + "/");
+                string[] path = [..prefix, (string?)child.Attribute("name") ?? ""];
+                if (child.Name == "viewfolder") Walk(child, path);
                 else if (child.Name == "selectionset") sets.Add(ParseSet(child, path));
             }
         }
     }
 
-    /// <summary>Наборы локатора: набор по полному пути или все наборы папки.</summary>
+    /// <summary>
+    ///     Наборы локатора: набор по полному пути или все наборы папки. В локаторе сегменты разделены «/», а «/» внутри
+    ///     имени записан как «?1». Ненайденный локатор - ошибка, а не пустой набор.
+    /// </summary>
     public IReadOnlyList<NavisSet> Resolve(string locator)
     {
         var path = locator.StartsWith(TreePrefix + "/", StringComparison.Ordinal) ? locator[(TreePrefix.Length + 1)..] : locator;
-        var exact = _sets.Where(set => set.Path == path).ToArray();
-        return exact.Length > 0 ? exact : _sets.Where(set => set.Path.StartsWith(path + "/", StringComparison.Ordinal)).ToArray();
+        var segments = path.Split('/').Select(segment => segment.Replace("?1", "/")).ToArray();
+        var found = _sets.Where(set => set.Segments.Count >= segments.Length && set.Segments.Take(segments.Length).SequenceEqual(segments)).ToArray();
+        return found.Length > 0 ? found : throw new InvalidDataException($"Локатор «{locator}» не найден среди наборов.");
     }
 
-    private static NavisSet ParseSet(XElement element, string path)
+    private static NavisSet ParseSet(XElement element, string[] path)
     {
         var conditions = element.Element("findspec")?.Element("conditions")?.Elements("condition")
-            ?? throw new InvalidDataException($"Набор {path} не поисковый: явные выборки не поддерживаются.");
+            ?? throw new InvalidDataException($"Набор {string.Join("/", path)} не поисковый: явные выборки не поддерживаются.");
         var groups = new List<List<NavisCondition>>();
         foreach (var condition in conditions)
         {
