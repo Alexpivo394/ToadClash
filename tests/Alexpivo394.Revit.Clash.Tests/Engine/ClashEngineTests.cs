@@ -158,6 +158,35 @@ public sealed class ClashEngineTests
     }
 
     [Test]
+    public void BoxInsideRotatedBox_ZeroTolerance_HitByContainment()
+    {
+        // Повёрнутый воздуховод: габариты треугольников его боковых граней задевают зону вложенного отвода,
+        // а сами вершины далеко. При малом повороте в зону попадает только ближняя боковая грань.
+        var duct = Rotated(TestScenes.Box(new Vector3(-300, -1500, 0), new Vector3(300, 1500, 200)), 3.5f);
+        var fitting = Rotated(TestScenes.Box(new Vector3(-240, 180, 5), new Vector3(-195, 250, 70)), 3.5f);
+
+        var result = RunPair(fitting, duct, tolerance: 0);
+
+        result.Hits.Count.ShouldBe(1);
+        result.Hits[0].DepthMm.ShouldBe(45f, 1f);
+    }
+
+    private static ElementMesh Rotated(ElementMesh mesh, float degrees)
+    {
+        var (sin, cos) = MathF.SinCos(degrees * MathF.PI / 180);
+        var positions = (float[])mesh.Positions.Clone();
+        for (var i = 0; i < positions.Length; i += 3)
+        {
+            var x = positions[i];
+            var y = positions[i + 1];
+            positions[i] = x * cos - y * sin;
+            positions[i + 1] = x * sin + y * cos;
+        }
+
+        return new ElementMesh(positions, mesh.Indices);
+    }
+
+    [Test]
     public void BoxInsideBox_EitherOrder_HitByContainment() =>
         RunPair(Cube(0), Cube(400, 400, 400, 200)).Hits.Count.ShouldBe(1);
 

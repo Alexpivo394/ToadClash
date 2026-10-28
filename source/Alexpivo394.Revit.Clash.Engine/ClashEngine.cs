@@ -151,9 +151,14 @@ public sealed class ClashEngine(EngineOptions options)
             }
             else
             {
-                if (narrow.Containment.IsInside(pair.A, pair.B, _candidates)) zone = a.Bounds;
-                else if (narrow.Containment.IsInside(pair.B, pair.A, _candidates)) zone = b.Bounds;
+                // Вложенный элемент целиком в обоих телах: его вершины - общие точки, иначе внешний элемент представлен
+                // лишь треугольниками, чей габарит задел зону, например одной боковой гранью.
+                int inner;
+                if (narrow.Containment.IsInside(pair.A, pair.B, _candidates)) inner = pair.A;
+                else if (narrow.Containment.IsInside(pair.B, pair.A, _candidates)) inner = pair.B;
                 else return false;
+                zone = scene.Elements[inner].Bounds;
+                SampleVertices(scene.Elements[inner].Positions);
             }
 
             var tolerance = Math.Max(pair.ToleranceMm, MinToleranceMm);
@@ -191,6 +196,18 @@ public sealed class ClashEngine(EngineOptions options)
                 var v = inCommon[(int)((long)i * inCommon.Count / take)];
                 if (narrow.Containment.ContainsPoint(outer, Vec3d.At(positions, v), _candidates))
                     _shared.Add(new Vector3(positions[v * 3], positions[v * 3 + 1], positions[v * 3 + 2]));
+            }
+        }
+
+        // Равномерная выборка вершин элемента, не больше MaxInsideSamples, в общие точки.
+        private void SampleVertices(float[] positions)
+        {
+            var count = positions.Length / 3;
+            var take = Math.Min(MaxInsideSamples, count);
+            for (var i = 0; i < take; i++)
+            {
+                var v = (int)((long)i * count / take);
+                _shared.Add(new Vector3(positions[v * 3], positions[v * 3 + 1], positions[v * 3 + 2]));
             }
         }
 
