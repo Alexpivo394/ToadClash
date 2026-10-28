@@ -2,7 +2,7 @@ using Alexpivo394.Revit.Clash.Rules;
 
 namespace Alexpivo394.Revit.Clash.Engine;
 
-/// <summary>Фильтр пар элементов по матрице разделов, исключениям наборов и соединениям MEP.</summary>
+/// <summary>Фильтр пар элементов по матрице разделов, исключениям наборов, соединениям MEP и вложенным семействам одного изделия.</summary>
 internal sealed class PairFilter
 {
     private readonly ClashScene _scene;
@@ -49,6 +49,7 @@ internal sealed class PairFilter
         var ea = _scene.Elements[a];
         var eb = _scene.Elements[b];
         if (!IsCellEnabled(ea.Discipline, eb.Discipline)) return false;
+        if (ea.ModelIndex == eb.ModelIndex && ea.Product == eb.Product) return false;
         if (_ignoreConnected && ea.ModelIndex == eb.ModelIndex && _scene.AreConnected(a, b)) return false;
         if (IsExcluded(ea.Sets, eb.Sets)) return false;
 

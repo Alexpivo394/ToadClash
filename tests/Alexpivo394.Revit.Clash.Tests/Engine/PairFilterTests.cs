@@ -87,6 +87,33 @@ public sealed class PairFilterTests
     }
 
     [Test]
+    public void NestedComponents_OfSameRoot_Skipped()
+    {
+        var config = Config() with { Matrix = [new MatrixCell("OV", "OV", true)] };
+        var model = TestScenes.Model("ov", "OV", Zero, [
+            new("parent", "OST_PipeCurves", Cube()),
+            new("child", "OST_PipeCurves", Cube(), Root: "parent"),
+            new("grandchild", "OST_PipeCurves", Cube(), Root: "parent")]);
+        var (scene, filter) = Setup(config, model);
+
+        BroadPhase.Find(scene, config, filter, 2).ShouldBeEmpty();
+    }
+
+    [Test]
+    public void NestedComponents_DifferentRootsOrModels_Checked()
+    {
+        var config = Config() with { Matrix = [new MatrixCell("OV", "OV", true)] };
+        var (scene, filter) = Setup(config,
+            TestScenes.Model("ov", "OV", Zero, [
+                new("parent", "OST_PipeCurves", Cube()),
+                new("other", "OST_PipeCurves", Cube(), Root: "another")]),
+            TestScenes.Model("ov2", "OV", Zero, [new("child", "OST_PipeCurves", Cube(), Root: "parent")]));
+
+        // Три пары: родитель и чужой корень в одной модели, а одинаковый UniqueId корня в другой модели - другое изделие.
+        BroadPhase.Find(scene, config, filter, 2).Count.ShouldBe(3);
+    }
+
+    [Test]
     public void ConnectedIds_AcrossModels_AreNotConnected()
     {
         var config = Config();

@@ -10,10 +10,11 @@ namespace Alexpivo394.Revit.Clash.Geometry;
 /// </summary>
 public static class ModelGeometryFile
 {
-    /// <summary>Магическое число файла, "TCG1".</summary>
+    /// <summary>Магическое число файла, "TCG1"; версия формата записана следом.</summary>
     public const uint Magic = 0x31474354;
 
-    private const int FormatVersion = 1;
+    /// <summary>Версия записи. Версия 1 читается: в ней нет корневого семейства элемента.</summary>
+    private const int FormatVersion = 2;
     private const int MaxElements = 1 << 26;
     private const int MaxMeshValues = 1 << 26;
 
@@ -71,7 +72,7 @@ public static class ModelGeometryFile
         try
         {
             using var reader = BinaryIo.CreateReader(input);
-            var header = ReadPrefix(reader);
+            var header = ReadPrefix(reader, out var version);
 
             var count = reader.ReadCount(MaxElements);
             var infos = new ElementInfo[count];
@@ -81,7 +82,7 @@ public static class ModelGeometryFile
             var lengths = new int[count];
             for (var i = 0; i < count; i++)
             {
-                infos[i] = ReadInfo(reader);
+                infos[i] = ReadInfo(reader, version);
                 var min = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
                 var max = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
                 bounds[i] = new Aabb(min, max);
@@ -124,7 +125,7 @@ public static class ModelGeometryFile
         try
         {
             using var reader = BinaryIo.CreateReader(input);
-            return ReadPrefix(reader);
+            return ReadPrefix(reader, out _);
         }
         catch (Exception e) when (e is EndOfStreamException or ArgumentException or OverflowException or FormatException)
         {
@@ -136,11 +137,11 @@ public static class ModelGeometryFile
     internal static long ReadMeshBlockOffset(Stream input)
     {
         using var reader = BinaryIo.CreateReader(input);
-        ReadPrefix(reader);
+        ReadPrefix(reader, out var version);
         var count = reader.ReadCount(MaxElements);
         for (var i = 0; i < count; i++)
         {
-            ReadInfo(reader);
+            ReadInfo(reader, version);
             reader.ReadExactly(6 * sizeof(float) + sizeof(ulong) + sizeof(long) + sizeof(int));
         }
 
@@ -148,11 +149,11 @@ public static class ModelGeometryFile
         return input.Position;
     }
 
-    private static ModelHeader ReadPrefix(BinaryReader reader)
+    private static ModelHeader ReadPrefix(BinaryReader reader, out int version)
     {
         if (reader.ReadUInt32() != Magic) throw new InvalidDataException("Это не файл геометрии ToadClash.");
-        var version = reader.ReadInt32();
-        if (version != FormatVersion)
+        version = reader.ReadInt32();
+        if (version is not (1 or FormatVersion))
             throw new InvalidDataException($"Неподдерживаемая версия файла геометрии: {version}.");
 
         var modelKey = reader.ReadString();
@@ -194,9 +195,10 @@ public static class ModelGeometryFile
         writer.WriteNullable(info.Level);
         writer.WriteNullable(info.Workset);
         writer.WriteStrings(info.ConnectedUniqueIds);
+        writer.WriteNullable(info.RootComponentUniqueId);
     }
 
-    private static ElementInfo ReadInfo(BinaryReader reader) => new(
+    private static ElementInfo ReadInfo(BinaryReader reader, int version) => new(
         reader.ReadString(),
         reader.ReadInt64(),
         reader.ReadString(),
@@ -204,7 +206,8 @@ public static class ModelGeometryFile
         reader.ReadNullableString(),
         reader.ReadNullableString(),
         reader.ReadNullableString(),
-        reader.ReadStrings(MaxElements));
+        reader.ReadStrings(MaxElements),
+        version >= 2 ? reader.ReadNullableString() : null);
 
     private static byte[] CompressMesh(ElementMesh mesh)
     {

@@ -22,6 +22,9 @@ internal sealed class SceneElement
     public required int[] Indices { get; init; }
 
     public required int ModelIndex { get; init; }
+
+    /// <summary>Номер изделия в модели: элементы с общим корнем вложенных семейств друг с другом не проверяются.</summary>
+    public required int Product { get; init; }
 }
 
 /// <summary>
@@ -102,6 +105,7 @@ public sealed class ClashScene
 
             var same = header.OriginX == ox && header.OriginY == oy && header.OriginZ == oz;
             var byUniqueId = new Dictionary<string, int>(StringComparer.Ordinal);
+            var products = new Dictionary<string, int>(StringComparer.Ordinal);
             var links = new List<(int Index, IReadOnlyList<string> Ids)>();
 
             foreach (var element in model.Geometry.Elements)
@@ -115,6 +119,8 @@ public sealed class ClashScene
 
                 var positions = same ? mesh.Positions : Rebase(mesh.Positions, header, ox, oy, oz);
                 var index = elements.Count;
+                var root = info.RootComponentUniqueId ?? info.UniqueId;
+                if (!products.TryGetValue(root, out var product)) products.Add(root, product = products.Count);
                 elements.Add(new SceneElement
                 {
                     Ref = new ElementRef(header.ModelKey, info.UniqueId),
@@ -123,7 +129,8 @@ public sealed class ClashScene
                     Bounds = Aabb.FromPositions(positions),
                     Positions = positions,
                     Indices = mesh.Indices,
-                    ModelIndex = m
+                    ModelIndex = m,
+                    Product = product
                 });
                 triangles += mesh.TriangleCount;
                 byUniqueId[info.UniqueId] = index;

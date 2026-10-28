@@ -66,6 +66,24 @@ public sealed class ExtractorTests
         Collect(doc).Select(element => element.Id.IntegerValue).ShouldBe([1, 2, 3]);
     }
 
+    [Test]
+    public void RootComponent_IsTopLevelInstanceOfNestingChain()
+    {
+        var doc = new Document();
+        var parent = new FamilyInstance { Id = new(1), Document = doc };
+        var child = new FamilyInstance { Id = new(2), Document = doc, SuperComponent = parent };
+        var grandchild = new FamilyInstance { Id = new(3), Document = doc, SuperComponent = child };
+
+        Root(grandchild).ShouldBe("1");
+        Root(child).ShouldBe("1");
+        Root(parent).ShouldBeNull();
+        Root(new Element { Id = new(4), Document = doc }).ShouldBeNull();
+    }
+
+    private static string? Root(Element element) => (string?)typeof(GeometryExtractor)
+        .GetMethod("RootComponentUniqueId", BindingFlags.NonPublic | BindingFlags.Static)!
+        .Invoke(null, [element]);
+
     private static List<Element> Collect(Document doc) => (List<Element>)typeof(GeometryExtractor)
         .GetMethod("CollectVisible", BindingFlags.NonPublic | BindingFlags.Static)!
         .Invoke(null, [doc, new View3D(), new List<BuiltInCategory> { BuiltInCategory.OST_GenericModel }])!;

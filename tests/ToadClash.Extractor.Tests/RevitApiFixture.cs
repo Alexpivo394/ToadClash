@@ -104,6 +104,7 @@ namespace Autodesk.Revit.DB
     {
         public List<ElementId> Children { get; } = [];
         public ICollection<ElementId> GetSubComponentIds() => Children;
+        public Element? SuperComponent { get; init; }
     }
     public class View : Element;
     public sealed class View3D : View { public bool IsTemplate => false; }

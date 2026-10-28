@@ -19,7 +19,7 @@ public sealed class ModelGeometryFileTests
         var elements = new[]
         {
             Make(new ElementInfo("uid-1", 101, "OST_Walls", "Стена", "Базовая 200", "Уровень 1", "Workset1", ["uid-2", "uid-3"]), triangle, 0xDEADBEEFCAFEBABEUL),
-            Make(new ElementInfo("uid-2", 5_000_000_000, "OST_PipeCurves", null, null, null, null, []), quad, 42UL),
+            Make(new ElementInfo("uid-2", 5_000_000_000, "OST_PipeCurves", null, null, null, null, [], "uid-1"), quad, 42UL),
             Make(new ElementInfo("uid-3", 103, "OST_Floors", "Floor", "Generic", "L2", null, []), empty, 0UL),
         };
         return new ModelGeometry(header, elements, ["uid-1", "uid-2", "uid-3", "uid-4", "uid-5"]);
@@ -54,6 +54,7 @@ public sealed class ModelGeometryFileTests
             b.Info.Level.ShouldBe(a.Info.Level);
             b.Info.Workset.ShouldBe(a.Info.Workset);
             b.Info.ConnectedUniqueIds.ShouldBe(a.Info.ConnectedUniqueIds);
+            b.Info.RootComponentUniqueId.ShouldBe(a.Info.RootComponentUniqueId);
             b.Bounds.ShouldBe(a.Bounds);
             b.Fingerprint.ShouldBe(a.Fingerprint);
             b.Mesh.Positions.ShouldBe(a.Mesh.Positions);
@@ -62,6 +63,21 @@ public sealed class ModelGeometryFileTests
 
         loaded.Elements[0].Info.Family.ShouldBe("Стена");
         loaded.Elements[2].Mesh.TriangleCount.ShouldBe(0);
+    }
+
+    [Test]
+    public void Read_Version1File_RootComponentIsNull()
+    {
+        // Файл записан форматом версии 1, до поля корневого семейства.
+        const string version1 =
+            "VENHMQEAAAAEYXJjaAhhcmNoLnJ2dOkHAAAAXNu0QzPfCLQAAAABBHszRH0AAAAAAESPQAAAAAAAQZ/AAAAAAAAADkACAAAABXVpZC0xZQAAAAAAAAAJT1NUX1dhbGxzAQrQodGC0LXQvdCwARLQkdCw0LfQvtCy0LDRjyAyMDABENCj0YDQvtCy0LXQvdGMIDEBCFdvcmtzZXQxAQAAAAV1aWQtMgAAAAAAAAAAAAAAAAAAyEIAAMhCAABIQgcAAAAAAAAAAAAAAAAAAAAeAAAABXVpZC0yZgAAAAAAAAAOT1NUX1BpcGVDdXJ2ZXMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAyEIAAMhCAABIQggAAAAAAAAAHgAAAAAAAAAeAAAAPAAAAAAAAABiZkAHJ5xQRUB8DyeYOkYGBgYmBgYGAAAAAP//AwBiZkAHJ5xQRUB8DyeYOkYGBgYmBgYGAAAAAP//AwACAAAABXVpZC0xBXVpZC0y";
+
+        var loaded = ModelGeometryFile.Read(new MemoryStream(Convert.FromBase64String(version1)));
+
+        loaded.Elements.Select(e => e.Info.UniqueId).ShouldBe(["uid-1", "uid-2"]);
+        loaded.Elements[0].Info.ConnectedUniqueIds.ShouldBe(["uid-2"]);
+        loaded.Elements.ShouldAllBe(e => e.Info.RootComponentUniqueId == null);
+        loaded.Inventory.ShouldBe(["uid-1", "uid-2"]);
     }
 
     [Test]

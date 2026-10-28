@@ -8,7 +8,7 @@ namespace Alexpivo394.Revit.Clash.Tests.Engine;
 public static class TestScenes
 {
     /// <summary>Элемент тестовой модели.</summary>
-    public sealed record Item(string UniqueId, string Category, ElementMesh Mesh, string[]? Connected = null);
+    public sealed record Item(string UniqueId, string Category, ElementMesh Mesh, string[]? Connected = null, string? Root = null);
 
     /// <summary>Параллелепипед: 8 вершин, 12 треугольников.</summary>
     public static ElementMesh Box(Vector3 min, Vector3 max)
@@ -83,7 +83,7 @@ public static class TestScenes
         var header = new ModelHeader(key, "", 2024, DateTimeOffset.UnixEpoch, true, "", origin.X, origin.Y, origin.Z);
         var elements = items
             .Select(item => new ElementGeometry(
-                new ElementInfo(item.UniqueId, 1, item.Category, null, null, null, null, item.Connected ?? []),
+                new ElementInfo(item.UniqueId, 1, item.Category, null, null, null, null, item.Connected ?? [], item.Root),
                 item.Mesh,
                 Aabb.FromPositions(item.Mesh.Positions),
                 0))

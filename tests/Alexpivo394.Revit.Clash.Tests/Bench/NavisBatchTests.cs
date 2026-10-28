@@ -89,6 +89,27 @@ public sealed class NavisBatchTests
         reported.NavisConnected.ShouldBe(1);
     }
 
+    [Test]
+    public void Compare_NestedComponentOfSameRoot_IsSkippedAndCounted()
+    {
+        var (models, selection) = Scene();
+        var pipe = models[0].Geometry.Elements[0];
+        var nested = new ElementGeometry(pipe.Info with { UniqueId = "valve", ElementId = 12, RootComponentUniqueId = "pipe" },
+            pipe.Mesh, pipe.Bounds, 0);
+        var parameters = new Dictionary<string, IReadOnlyList<ParameterValue>>
+        {
+            ["pipe"] = [new("Категория", null, "Трубы", null)], ["valve"] = [new("Категория", null, "Трубы", null)]
+        };
+        var withNested = new ModelInput("DON_PT", new ModelGeometry(models[0].Geometry.Header, [pipe, nested], []), new ModelParameters(parameters));
+
+        var result = NavisBatch.Compare(Test("PT - PT", "ПТ", "ПТ"), selection, new NavisMembership([withNested, models[1]]), Report(Result(10, 12)));
+
+        result.OnlyOurs.ShouldBeEmpty();
+        result.OnlyNavis.ShouldBeEmpty();
+        result.NestedIgnored.ShouldBe(1);
+        result.NavisNested.ShouldBe(1);
+    }
+
     private static (IReadOnlyList<ModelInput> Models, NavisSelection Selection) Scene()
     {
         var pipe = Model("DON_PT", "pipe", 10, "Трубы", Vector3.Zero);

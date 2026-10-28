@@ -249,7 +249,18 @@ public static class GeometryExtractor
             type?.Name,
             LevelOf(element)?.Name,
             workset,
-            ConnectivityReader.ReadConnectedUniqueIds(element));
+            ConnectivityReader.ReadConnectedUniqueIds(element),
+            RootComponentUniqueId(element));
+    }
+
+    /// <summary>Экземпляр верхнего уровня цепочки вложенных общих семейств; null, если элемент не вложен.</summary>
+    private static string? RootComponentUniqueId(Element element)
+    {
+        if (element is not FamilyInstance { SuperComponent: { } super }) return null;
+        var root = super;
+        // Глубина вложенности семейств Revit невелика; ограничение защищает от циклической ссылки.
+        for (var depth = 0; depth < 64 && root is FamilyInstance { SuperComponent: { } next }; depth++) root = next;
+        return root.UniqueId;
     }
 
     private static Level? LevelOf(Element element) =>
