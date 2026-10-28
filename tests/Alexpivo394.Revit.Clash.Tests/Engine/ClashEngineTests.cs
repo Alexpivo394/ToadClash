@@ -78,6 +78,55 @@ public sealed class ClashEngineTests
     }
 
     [Test]
+    public void DuctThroughWallOpening_FacesOffsetByMicrons_NoHit()
+    {
+        // Проём и воздуховод триангулированы независимо: грани касаются с погрешностью 3 мкм.
+        var duct = TestScenes.Box(new Vector3(999.997f, -100, 999.997f), new Vector3(2000.003f, 300, 2000.003f));
+
+        RunPair(duct, WallWithOpening()).Hits.ShouldBeEmpty();
+    }
+
+    // Стена 3000 × 200 × 3000 с проёмом 1000 × 1000 в центре - одно замкнутое тело, как у Revit.
+    private static ElementMesh WallWithOpening()
+    {
+        float[] grid = [0, 1000, 2000, 3000];
+        const float front = 0, back = 200;
+        var positions = new List<float>();
+        var indices = new List<int>();
+        var index = new Dictionary<Vector3, int>();
+        bool Filled(int i, int j) => i is >= 0 and < 3 && j is >= 0 and < 3 && !(i == 1 && j == 1);
+
+        for (var i = 0; i < 3; i++)
+        for (var j = 0; j < 3; j++)
+        {
+            if (!Filled(i, j)) continue;
+            float x0 = grid[i], x1 = grid[i + 1], z0 = grid[j], z1 = grid[j + 1];
+            Quad(new(x0, front, z0), new(x1, front, z0), new(x1, front, z1), new(x0, front, z1));
+            Quad(new(x0, back, z0), new(x0, back, z1), new(x1, back, z1), new(x1, back, z0));
+            if (!Filled(i - 1, j)) Quad(new(x0, front, z0), new(x0, front, z1), new(x0, back, z1), new(x0, back, z0));
+            if (!Filled(i + 1, j)) Quad(new(x1, front, z0), new(x1, back, z0), new(x1, back, z1), new(x1, front, z1));
+            if (!Filled(i, j - 1)) Quad(new(x0, front, z0), new(x0, back, z0), new(x1, back, z0), new(x1, front, z0));
+            if (!Filled(i, j + 1)) Quad(new(x0, front, z1), new(x1, front, z1), new(x1, back, z1), new(x0, back, z1));
+        }
+
+        return new ElementMesh([.. positions], [.. indices]);
+
+        void Quad(Vector3 a, Vector3 b, Vector3 c, Vector3 d)
+        {
+            int[] v = [Vertex(a), Vertex(b), Vertex(c), Vertex(d)];
+            indices.AddRange([v[0], v[1], v[2], v[0], v[2], v[3]]);
+        }
+
+        int Vertex(Vector3 p)
+        {
+            if (index.TryGetValue(p, out var existing)) return existing;
+            index[p] = positions.Count / 3;
+            positions.AddRange([p.X, p.Y, p.Z]);
+            return index[p];
+        }
+    }
+
+    [Test]
     public void Boxes_Overlap10_BelowTolerance_NoHit() => RunPair(Cube(0), Cube(990)).Hits.ShouldBeEmpty();
 
     [Test]

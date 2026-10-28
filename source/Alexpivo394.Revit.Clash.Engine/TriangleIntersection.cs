@@ -17,8 +17,11 @@ namespace Alexpivo394.Revit.Clash.Engine;
 /// </remarks>
 internal static class TriangleIntersection
 {
-    /// <summary>Допуск расстояния до плоскости и длины отрезка пересечения, мм.</summary>
-    public const double PlaneEpsilon = 1e-4;
+    /// <summary>
+    ///     Допуск расстояния до плоскости и длины отрезка пересечения, мм. Равен шагу сшивки выгрузки: грани соседних
+    ///     элементов триангулируются независимо и при касании расходятся на микроны (воздуховод в проёме стены).
+    /// </summary>
+    public const double PlaneEpsilon = 1e-2;
 
     /// <summary>Наименьшая общая площадь копланарных треугольников, которая считается пересечением, мм².</summary>
     public const double CoplanarAreaEpsilon = 1e-2;
