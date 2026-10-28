@@ -6,6 +6,11 @@ namespace Alexpivo394.Revit.Clash.Revit;
 /// <summary>Выгрузка геометрии и параметров модели Revit для проверки на коллизии.</summary>
 public static class GeometryExtractor
 {
+    /// <summary>Наибольшее отклонение триангуляции тела целиком от тела, мм: заметно меньше допуска 20 мм.</summary>
+    private const double ShellAccuracyMm = 3;
+
+    private const double FeetToMillimeters = 304.8;
+
     /// <summary>
     ///     Видимые на виде элементы с геометрией + опись всех элементов модели (без видов, типов, элементов без категории).
     ///     Учитываются только элементы модельных встроенных категорий; группы, сборки и связанные модели не выгружаются.
@@ -158,12 +163,58 @@ public static class GeometryExtractor
                     AppendGeometry(builder, instance.GetSymbolGeometry(), local.Multiply(instance.Transform), coordinates, levelOfDetail);
                     break;
                 case Solid solid when solid.Faces.Size > 0:
-                    foreach (Face face in solid.Faces) AppendMesh(builder, face.Triangulate(levelOfDetail), local, coordinates);
+                    AppendSolid(builder, solid, local, coordinates, levelOfDetail);
                     break;
                 case Mesh mesh:
                     AppendMesh(builder, mesh, local, coordinates);
                     break;
             }
+        }
+    }
+
+    /// <summary>
+    ///     Тело триангулируется по граням. Грани триангулируются независимо, и на криволинейных гранях узлы общих рёбер
+    ///     могут не совпасть - сетка тела выходит незамкнутой. Тогда тело триангулируется целиком
+    ///     (<see cref="SolidUtils.TessellateSolidOrShell"/>, отклонение до <see cref="ShellAccuracyMm"/>); если и это
+    ///     не удалось, остаётся триангуляция по граням.
+    /// </summary>
+    private static void AppendSolid(MeshBuilder builder, Solid solid, Transform local, CoordinateTransform coordinates, double levelOfDetail)
+    {
+        var mark = builder.Mark();
+        foreach (Face face in solid.Faces) AppendMesh(builder, face.Triangulate(levelOfDetail), local, coordinates);
+        if (builder.IsClosedSince(mark)) return;
+
+        TriangulatedSolidOrShell shell;
+        try
+        {
+            shell = SolidUtils.TessellateSolidOrShell(solid, new SolidOrShellTessellationControls { Accuracy = ShellAccuracyMm / FeetToMillimeters });
+        }
+        catch (Autodesk.Revit.Exceptions.ApplicationException)
+        {
+            return;
+        }
+
+        var components = Enumerable.Range(0, shell.ShellComponentCount).Select(shell.GetShellComponent).Where(c => c.TriangleCount > 0).ToList();
+        if (components.Count == 0) return;
+
+        builder.Rollback(mark);
+        foreach (var component in components) AppendShell(builder, component, local, coordinates);
+    }
+
+    private static void AppendShell(MeshBuilder builder, TriangulatedShellComponent component, Transform local, CoordinateTransform coordinates)
+    {
+        var points = new List<XYZ>(component.VertexCount);
+        for (var i = 0; i < component.VertexCount; i++) points.Add(component.GetVertex(i));
+        var vertices = coordinates.ToSharedMillimeters(points, local);
+        var mirrored = local.Determinant < 0;
+        for (var i = 0; i < component.TriangleCount; i++)
+        {
+            var triangle = component.GetTriangle(i);
+            var a = vertices[triangle.VertexIndex0];
+            var b = vertices[triangle.VertexIndex1];
+            var c = vertices[triangle.VertexIndex2];
+            if (mirrored) builder.AddTriangle(a, c, b);
+            else builder.AddTriangle(a, b, c);
         }
     }
 

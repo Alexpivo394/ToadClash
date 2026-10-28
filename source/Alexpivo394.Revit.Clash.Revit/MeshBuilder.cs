@@ -17,6 +17,41 @@ internal sealed class MeshBuilder(Vector3d origin)
     private readonly Dictionary<(long X, long Y, long Z), int> _vertexByCell = new();
     private readonly List<float> _positions = [];
     private readonly List<int> _indices = [];
+    private readonly List<(long X, long Y, long Z)> _cells = [];
+
+    /// <summary>Отметка начала тела: число индексов и вершин на момент вызова.</summary>
+    public readonly record struct ShellMark(int IndexCount, int VertexCount);
+
+    /// <summary>Отмечает начало тела, чтобы проверить его замкнутость или откатить.</summary>
+    public ShellMark Mark() => new(_indices.Count, _positions.Count / 3);
+
+    /// <summary>Замкнуты ли треугольники, добавленные после отметки: каждое ребро после сшивки ровно в двух.</summary>
+    public bool IsClosedSince(ShellMark mark)
+    {
+        if (_indices.Count == mark.IndexCount) return false;
+        var edges = new Dictionary<(int, int), int>();
+        for (var t = mark.IndexCount; t < _indices.Count; t += 3)
+        {
+            for (var k = 0; k < 3; k++)
+            {
+                var a = _indices[t + k];
+                var b = _indices[t + (k + 1) % 3];
+                var key = a < b ? (a, b) : (b, a);
+                edges[key] = edges.TryGetValue(key, out var count) ? count + 1 : 1;
+            }
+        }
+
+        return edges.Values.All(count => count == 2);
+    }
+
+    /// <summary>Удаляет треугольники и вершины, добавленные после отметки.</summary>
+    public void Rollback(ShellMark mark)
+    {
+        _indices.RemoveRange(mark.IndexCount, _indices.Count - mark.IndexCount);
+        for (var v = mark.VertexCount; v < _cells.Count; v++) _vertexByCell.Remove(_cells[v]);
+        _cells.RemoveRange(mark.VertexCount, _cells.Count - mark.VertexCount);
+        _positions.RemoveRange(mark.VertexCount * 3, _positions.Count - mark.VertexCount * 3);
+    }
 
     public void AddTriangle(Vector3d a, Vector3d b, Vector3d c)
     {
@@ -53,6 +88,7 @@ internal sealed class MeshBuilder(Vector3d origin)
 
         index = _positions.Count / 3;
         _vertexByCell.Add(cell, index);
+        _cells.Add(cell);
         _positions.Add((float)(point.X - origin.X));
         _positions.Add((float)(point.Y - origin.Y));
         _positions.Add((float)(point.Z - origin.Z));

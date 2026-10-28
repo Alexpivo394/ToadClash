@@ -159,6 +159,21 @@ namespace Autodesk.Revit.DB
         public Triangle get_Triangle(int index) => new();
     }
     public sealed class Triangle { public int get_Index(int index) => index; }
+    public sealed class SolidOrShellTessellationControls { public double Accuracy { get; set; } }
+    public sealed class TriangulatedSolidOrShell
+    {
+        public int ShellComponentCount => 0;
+        public TriangulatedShellComponent GetShellComponent(int index) => new();
+    }
+    public sealed class TriangulatedShellComponent
+    {
+        public int VertexCount => 0;
+        public int TriangleCount => 0;
+        public XYZ GetVertex(int index) => new();
+        public TriangleInShellComponent GetTriangle(int index) => new();
+    }
+    public sealed class TriangleInShellComponent { public int VertexIndex0 => 0; public int VertexIndex1 => 0; public int VertexIndex2 => 0; }
+    public static class SolidUtils { public static TriangulatedSolidOrShell TessellateSolidOrShell(Solid solid, SolidOrShellTessellationControls controls) => new(); }
 }
 
 namespace ToadClash.Extractor.Tests
@@ -189,4 +204,9 @@ namespace Alexpivo394.Revit.Clash.Revit
     {
         public static IReadOnlyList<string> ReadConnectedUniqueIds(Element element) => [];
     }
+}
+
+namespace Autodesk.Revit.Exceptions
+{
+    public class ApplicationException : System.Exception;
 }
