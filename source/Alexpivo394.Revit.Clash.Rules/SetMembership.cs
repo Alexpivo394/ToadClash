@@ -16,6 +16,13 @@ public sealed class SetMembership
     /// <summary>Вычисляет принадлежность элементов наборам; учитываются только наборы раздела модели.</summary>
     public static SetMembership Evaluate(ClashConfiguration config, IReadOnlyList<ModelInput> models)
     {
+        if (models is null) throw new ArgumentNullException(nameof(models));
+        return Evaluate(config, models.Select(m => m.ToElements()).ToArray());
+    }
+
+    /// <summary>То же по описаниям элементов без сеток — например, по оглавлению выгрузки.</summary>
+    public static SetMembership Evaluate(ClashConfiguration config, IReadOnlyList<ElementsInput> models)
+    {
         if (config is null) throw new ArgumentNullException(nameof(config));
         if (models is null) throw new ArgumentNullException(nameof(models));
 
@@ -27,18 +34,17 @@ public sealed class SetMembership
                 .ToList();
             if (sets.Count == 0) continue;
 
-            var modelKey = model.Geometry.Header.ModelKey;
-            foreach (var element in model.Geometry.Elements)
+            foreach (var info in model.Elements)
             {
-                var parameters = model.Parameters.For(element.Info.UniqueId);
+                var parameters = model.Parameters.For(info.UniqueId);
                 List<Guid>? matched = null;
                 foreach (var set in sets)
                 {
-                    if (!Matches(set, element.Info, parameters)) continue;
+                    if (!Matches(set, info, parameters)) continue;
                     (matched ??= []).Add(set.Id);
                 }
 
-                if (matched is not null) result[(modelKey, element.Info.UniqueId)] = matched;
+                if (matched is not null) result[(model.ModelKey, info.UniqueId)] = matched;
             }
         }
 
@@ -49,7 +55,7 @@ public sealed class SetMembership
     public IReadOnlyList<Guid> SetsOf(string modelKey, string uniqueId) =>
         _sets.TryGetValue((modelKey, uniqueId), out var ids) ? ids : NoSets;
 
-    private static bool Matches(SelectionSet set, ElementInfo info, IReadOnlyList<ParameterValue> parameters)
+    internal static bool Matches(SelectionSet set, ElementInfo info, IReadOnlyList<ParameterValue> parameters)
     {
         foreach (var group in set.AnyOf)
         {
