@@ -12,9 +12,11 @@ namespace ToadClash.Bench;
 /// <param name="Left">Число элементов левой стороны во всех моделях.</param>
 /// <param name="Right">Число элементов правой стороны во всех моделях.</param>
 /// <param name="RuleIgnored">Наши пары, снятые правилами исключения проверки.</param>
+/// <param name="ConnectedIgnored">Наши пары соединённых элементов MEP одной модели: продукт их не проверяет.</param>
+/// <param name="NavisConnected">Пары отчёта из соединённых элементов MEP: в OnlyNavis не входят.</param>
 public sealed record NavisTestResult(string Test, int Left, int Right, IReadOnlyList<ComparisonPair> Common,
     IReadOnlyList<ComparisonPair> OnlyNavis, IReadOnlyList<ClashHit> OnlyOurs, IReadOnlyList<string> Unmapped,
-    int IgnoredResolved, int RuleIgnored);
+    int IgnoredResolved, int RuleIgnored, int ConnectedIgnored, int NavisConnected);
 
 /// <summary>Принадлежность элементов всех моделей наборам Navisworks; каждый набор вычисляется один раз.</summary>
 public sealed class NavisMembership(IReadOnlyList<ModelInput> models)
@@ -23,6 +25,13 @@ public sealed class NavisMembership(IReadOnlyList<ModelInput> models)
 
     /// <summary>Модели сравнения.</summary>
     public IReadOnlyList<ModelInput> Models { get; } = models;
+
+    /// <summary>Пары соединённых элементов MEP одной модели по ConnectedUniqueIds в любую сторону.</summary>
+    public HashSet<ComparisonPair> Connected => field ??= Models
+        .SelectMany(model => model.Geometry.Elements.SelectMany(element => element.Info.ConnectedUniqueIds.Select(other =>
+            NavisCompare.Pair(new ElementRef(model.Geometry.Header.ModelKey, element.Info.UniqueId),
+                new ElementRef(model.Geometry.Header.ModelKey, other)))))
+        .ToHashSet();
 
     /// <summary>Элементы набора.</summary>
     public HashSet<ElementRef> Of(NavisSet set)
@@ -48,7 +57,8 @@ public sealed class NavisMembership(IReadOnlyList<ModelInput> models)
 ///     Разовое сравнение этапа 0: каждая проверка файла настроек Navisworks воспроизводится на выгрузках всех моделей
 ///     и сравнивается с XML-отчётом того же имени. Стороны проверки - объединения её наборов по всем моделям, как в
 ///     сводной модели Navisworks; самопроверка стороны (selfintersect) не выполняется. Правило исключения снимает пару,
-///     если один элемент входит в первый набор правила, а второй - во второй. Режим hard_conservative и составные объекты
+///     если один элемент входит в первый набор правила, а второй - во второй. Пары соединённых элементов MEP одной модели
+///     снимаются, как в продукте, и считаются отдельно. Режим hard_conservative и составные объекты
 ///     не воспроизводятся.
 /// </summary>
 public static class NavisBatch
@@ -76,7 +86,8 @@ public static class NavisBatch
             [AllOf(LeftSide), AllOf(RightSide)], [new MatrixCell(LeftSide, RightSide, true, toleranceMm)], [], IgnoreConnectedMep: false);
         var rules = Rules(clashTest);
         var ours = new Dictionary<ComparisonPair, ClashHit>();
-        var ruleIgnored = 0;
+        var ruleIgnored = new HashSet<ComparisonPair>();
+        var connectedIgnored = new HashSet<ComparisonPair>();
         if (inputs.Count > 0)
         {
             foreach (var hit in new ClashEngine(new EngineOptions()).Run(inputs, configuration, CancellationToken.None).Hits)
@@ -86,9 +97,15 @@ public static class NavisBatch
                 if (a == b) continue;
                 var pair = NavisCompare.Pair(a, b);
                 if (ours.ContainsKey(pair)) continue;
+                if (membership.Connected.Contains(pair))
+                {
+                    connectedIgnored.Add(pair);
+                    continue;
+                }
+
                 if (rules.Any(rule => (rule.A.Contains(a) && rule.B.Contains(b)) || (rule.A.Contains(b) && rule.B.Contains(a))))
                 {
-                    ruleIgnored++;
+                    ruleIgnored.Add(pair);
                     continue;
                 }
 
@@ -98,8 +115,9 @@ public static class NavisBatch
 
         var (navis, unmapped, resolved) = report is null ? ([], [], 0) : ReadReport(report, membership.Models);
         ComparisonPair[] Ordered(IEnumerable<ComparisonPair> pairs) => pairs.OrderBy(pair => pair.A).ThenBy(pair => pair.B).ToArray();
-        return new NavisTestResult(name, left.Count, right.Count, Ordered(navis.Intersect(ours.Keys)), Ordered(navis.Except(ours.Keys)),
-            ours.Where(entry => !navis.Contains(entry.Key)).Select(entry => entry.Value).ToArray(), unmapped, resolved, ruleIgnored);
+        return new NavisTestResult(name, left.Count, right.Count, Ordered(navis.Intersect(ours.Keys)), Ordered(navis.Except(ours.Keys).Where(pair => !membership.Connected.Contains(pair))),
+            ours.Where(entry => !navis.Contains(entry.Key)).Select(entry => entry.Value).ToArray(), unmapped, resolved, ruleIgnored.Count, connectedIgnored.Count,
+            navis.Count(membership.Connected.Contains));
 
         HashSet<ElementRef> SideMembers(XElement? side)
         {
@@ -177,9 +195,9 @@ public static class NavisBatch
             var report = File.Exists(reportPath) ? Load(reportPath) : null;
             var clock = System.Diagnostics.Stopwatch.StartNew();
             var result = Compare(clashTest, selection, membership, report);
-            output.WriteLine(string.Join("\t", name, result.Left, result.Right, result.Common.Count + result.OnlyNavis.Count,
+            output.WriteLine(string.Join("\t", name, result.Left, result.Right, result.Common.Count + result.OnlyNavis.Count + result.NavisConnected,
                 result.Common.Count + result.OnlyOurs.Count, result.Common.Count, result.OnlyNavis.Count, result.OnlyOurs.Count,
-                result.Unmapped.Count, result.RuleIgnored, clock.Elapsed.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture)));
+                result.Unmapped.Count, result.RuleIgnored, result.ConnectedIgnored, result.NavisConnected, clock.Elapsed.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture)));
             output.Flush();
             WriteDetails(Path.Combine(outDirectory, name + ".tsv"), result, models);
         }

@@ -65,6 +65,30 @@ public sealed class NavisBatchTests
         result.RuleIgnored.ShouldBe(1);
     }
 
+    [Test]
+    public void Compare_ConnectedMepInSameModel_IsSkippedAndCounted()
+    {
+        var (models, selection) = Scene();
+        var pipe = models[0].Geometry.Elements[0];
+        var fitting = new ElementGeometry(pipe.Info with { UniqueId = "fitting", ElementId = 11, ConnectedUniqueIds = ["pipe"] },
+            pipe.Mesh, pipe.Bounds, 0);
+        var parameters = new Dictionary<string, IReadOnlyList<ParameterValue>>
+        {
+            ["pipe"] = [new("Категория", null, "Трубы", null)], ["fitting"] = [new("Категория", null, "Трубы", null)]
+        };
+        var withFitting = new ModelInput("DON_PT", new ModelGeometry(models[0].Geometry.Header, [pipe, fitting], []), new ModelParameters(parameters));
+
+        var result = NavisBatch.Compare(Test("PT - PT", "ПТ", "ПТ"), selection, new NavisMembership([withFitting, models[1]]), null);
+
+        result.OnlyOurs.ShouldBeEmpty();
+        result.ConnectedIgnored.ShouldBe(1);
+
+        var reported = NavisBatch.Compare(Test("PT - PT", "ПТ", "ПТ"), selection, new NavisMembership([withFitting, models[1]]), Report(Result(10, 11)));
+
+        reported.OnlyNavis.ShouldBeEmpty();
+        reported.NavisConnected.ShouldBe(1);
+    }
+
     private static (IReadOnlyList<ModelInput> Models, NavisSelection Selection) Scene()
     {
         var pipe = Model("DON_PT", "pipe", 10, "Трубы", Vector3.Zero);
