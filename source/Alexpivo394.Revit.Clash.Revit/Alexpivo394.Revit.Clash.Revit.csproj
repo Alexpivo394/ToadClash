@@ -15,6 +15,11 @@
         <PackageTags>revit;autodesk;clash;geometry</PackageTags>
     </PropertyGroup>
 
+    <!-- Пакет на каждый год Revit: {год}.{версия ядра}, как у Alexpivo394.Revit.Export -->
+    <PropertyGroup Condition="'$(ClashVersion)' != ''">
+        <Version>$(RevitVersion).$(ClashVersion)</Version>
+    </PropertyGroup>
+
     <ItemGroup>
         <InternalsVisibleTo Include="Alexpivo394.Revit.Clash.Tests"/>
     </ItemGroup>

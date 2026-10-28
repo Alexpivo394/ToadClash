@@ -9,6 +9,11 @@
         <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings>
     </PropertyGroup>
 
+    <!-- Версия пакетов задаёт build/ (ClashVersion); Revit-пакет переопределяет её на {год}.{ClashVersion} -->
+    <PropertyGroup Condition="'$(ClashVersion)' != ''">
+        <Version>$(ClashVersion)</Version>
+    </PropertyGroup>
+
     <!-- Package metadata shared by all libraries -->
     <PropertyGroup>
         <Authors>Alexpivo394</Authors>
