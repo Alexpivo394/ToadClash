@@ -46,6 +46,20 @@ internal sealed class Containment(IReadOnlyList<SceneElement> elements, Func<int
         return false;
     }
 
+    /// <summary>Лежит ли точка строго внутри замкнутой сетки элемента; незамкнутая сетка и неоднозначный луч - нет.</summary>
+    public bool ContainsPoint(int outer, in Vec3d point, List<int> scratch)
+    {
+        var bvh = bvhOf(outer);
+        if (!bvh.IsClosed) return false;
+        foreach (var direction in Directions)
+        {
+            var parity = Parity(bvh, point, direction, scratch);
+            if (parity != RayResult.Ambiguous) return parity == RayResult.Inside;
+        }
+
+        return false;
+    }
+
     private static bool StrictlyInside(in Aabb inner, in Aabb outer) =>
         inner.Min.X > outer.Min.X + BoundsMargin && inner.Min.Y > outer.Min.Y + BoundsMargin &&
         inner.Min.Z > outer.Min.Z + BoundsMargin && inner.Max.X < outer.Max.X - BoundsMargin &&

@@ -23,6 +23,9 @@ public sealed class ClashEngine(EngineOptions options)
     /// <summary>Расширение зоны сверх допуска при оценке глубины, мм.</summary>
     private const float ZoneMargin = 1;
 
+    /// <summary>Наибольшее число вершин элемента, проверяемых на вложенность в другой элемент пары.</summary>
+    private const int MaxInsideSamples = 256;
+
     /// <summary>
     ///     Нижняя граница допуска, мм: при допуске 0 касание с погрешностью float не становится коллизией.
     /// </summary>
@@ -124,6 +127,8 @@ public sealed class ClashEngine(EngineOptions options)
         private readonly List<int> _candidates = [];
         private readonly List<int> _smallTriangles = [];
         private readonly PenetrationDepth.Scratch _scratch = new();
+        private readonly List<Vector3> _shared = [];
+        private readonly List<int> _inCommon = [];
 
         public List<ClashHit> Hits { get; } = [];
 
@@ -135,8 +140,16 @@ public sealed class ClashEngine(EngineOptions options)
             var b = scene.Elements[pair.B];
 
             var zone = Aabb.Empty;
+            var common = Common(a.Bounds, b.Bounds);
             var (small, large) = a.Indices.Length <= b.Indices.Length ? (pair.A, pair.B) : (pair.B, pair.A);
-            if (!Intersections(narrow.BvhOf(small), narrow.BvhOf(large), Common(a.Bounds, b.Bounds), ref zone))
+            _shared.Clear();
+            if (Intersections(narrow.BvhOf(small), narrow.BvhOf(large), common, ref zone))
+            {
+                CollectInside(pair.A, pair.B, common);
+                CollectInside(pair.B, pair.A, common);
+                foreach (var point in _shared) zone = zone.Union(new Aabb(point, point));
+            }
+            else
             {
                 if (narrow.Containment.IsInside(pair.A, pair.B, _candidates)) zone = a.Bounds;
                 else if (narrow.Containment.IsInside(pair.B, pair.A, _candidates)) zone = b.Bounds;
@@ -145,7 +158,7 @@ public sealed class ClashEngine(EngineOptions options)
 
             var tolerance = Math.Max(pair.ToleranceMm, MinToleranceMm);
             var depth = PenetrationDepth.Estimate(
-                a, narrow.BvhOf(pair.A), b, narrow.BvhOf(pair.B), zone.Expand(tolerance + ZoneMargin), _scratch);
+                a, narrow.BvhOf(pair.A), b, narrow.BvhOf(pair.B), zone.Expand(tolerance + ZoneMargin), _shared, _scratch);
             if (!(depth > tolerance)) return false;
 
             var (first, second) = a.Ref.CompareTo(b.Ref) <= 0 ? (a.Ref, b.Ref) : (b.Ref, a.Ref);
@@ -157,6 +170,28 @@ public sealed class ClashEngine(EngineOptions options)
                 scene.OriginZ + ((double)zone.Min.Z + zone.Max.Z) / 2,
                 (float)depth);
             return true;
+        }
+
+        // Вершины элемента source в общем габарите, лежащие внутри замкнутого outer; не больше MaxInsideSamples проверок.
+        private void CollectInside(int source, int outer, in Aabb common)
+        {
+            if (!narrow.BvhOf(source).IsClosed || !narrow.BvhOf(outer).IsClosed) return;
+            var positions = narrow.Scene.Elements[source].Positions;
+            var inCommon = _inCommon;
+            inCommon.Clear();
+            for (var v = 0; v < positions.Length / 3; v++)
+            {
+                var p = new Vector3(positions[v * 3], positions[v * 3 + 1], positions[v * 3 + 2]);
+                if (Vector3.Min(p, common.Min) == common.Min && Vector3.Max(p, common.Max) == common.Max) inCommon.Add(v);
+            }
+
+            var take = Math.Min(MaxInsideSamples, inCommon.Count);
+            for (var i = 0; i < take; i++)
+            {
+                var v = inCommon[(int)((long)i * inCommon.Count / take)];
+                if (narrow.Containment.ContainsPoint(outer, Vec3d.At(positions, v), _candidates))
+                    _shared.Add(new Vector3(positions[v * 3], positions[v * 3 + 1], positions[v * 3 + 2]));
+            }
         }
 
         // Все отрезки пересечения треугольников пары; zone - их общий габарит. Треугольники берутся из BVH,

@@ -32,12 +32,19 @@ internal static class PenetrationDepth
         new Vec3d(-1, 1, 1).Normalized()
     ];
 
-    /// <summary>Оценивает глубину проникновения элементов в зоне, мм.</summary>
-    public static double Estimate(SceneElement a, MeshBvh bvhA, SceneElement b, MeshBvh bvhB, in Aabb zone, Scratch scratch)
+    /// <summary>
+    ///     Оценивает глубину проникновения элементов в зоне, мм. <paramref name="shared"/> - вершины одного элемента,
+    ///     лежащие внутри другого: они принадлежат обоим телам и добавляются к вершинам обоих, иначе тело, от которого в
+    ///     зону попала одна грань, проецируется в точку.
+    /// </summary>
+    public static double Estimate(SceneElement a, MeshBvh bvhA, SceneElement b, MeshBvh bvhB, in Aabb zone, IReadOnlyList<Vector3> shared,
+        Scratch scratch)
     {
         scratch.Reset();
         Collect(a, bvhA, zone, scratch, scratch.VerticesA);
         Collect(b, bvhB, zone, scratch, scratch.VerticesB);
+        scratch.VerticesA.AddRange(shared);
+        scratch.VerticesB.AddRange(shared);
 
         var depth = double.PositiveInfinity;
         foreach (var axis in FixedAxes) depth = Math.Min(depth, Overlap(axis, scratch.VerticesA, scratch.VerticesB));

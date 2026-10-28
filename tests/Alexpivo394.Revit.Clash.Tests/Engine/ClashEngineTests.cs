@@ -64,6 +64,20 @@ public sealed class ClashEngineTests
     }
 
     [Test]
+    public void SmallBoxAlmostInsideLargeBox_ProtrudesThroughTop_DepthCountsBuriedPart()
+    {
+        // Труба почти целиком внутри воздуховода и выступает над ним на 4 мм: поверхности пересекаются только у верхней
+        // грани, но тела перекрываются на всю высоту трубы.
+        var pipe = TestScenes.Box(new Vector3(2000, 2000, 400), new Vector3(2100, 2100, 504));
+        var duct = TestScenes.Box(Vector3.Zero, new Vector3(5000, 5000, 500));
+
+        var result = RunPair(pipe, duct);
+
+        result.Hits.Count.ShouldBe(1);
+        result.Hits[0].DepthMm.ShouldBe(100f, 1f);
+    }
+
+    [Test]
     public void Boxes_Overlap10_BelowTolerance_NoHit() => RunPair(Cube(0), Cube(990)).Hits.ShouldBeEmpty();
 
     [Test]
