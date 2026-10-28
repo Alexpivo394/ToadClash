@@ -13,8 +13,11 @@ public static class ModelGeometryFile
     /// <summary>Магическое число файла, "TCG1"; версия формата записана следом.</summary>
     public const uint Magic = 0x31474354;
 
-    /// <summary>Версия записи. Версия 1 читается: в ней нет корневого семейства элемента.</summary>
-    private const int FormatVersion = 2;
+    /// <summary>
+    ///     Версия записи. Прежние версии читаются: в версии 1 нет корневого семейства элемента, в версиях 1 и 2 —
+    ///     числа треугольников в таблице.
+    /// </summary>
+    private const int FormatVersion = 3;
     private const int MaxElements = 1 << 26;
     private const int MaxMeshValues = 1 << 26;
 
@@ -54,6 +57,7 @@ public static class ModelGeometryFile
             writer.Write(element.Fingerprint);
             writer.Write(offsets[i]);
             writer.Write(meshes[i].Length);
+            writer.Write(element.Mesh.TriangleCount);
         }
 
         writer.Write(blockLength);
@@ -74,35 +78,21 @@ public static class ModelGeometryFile
             using var reader = BinaryIo.CreateReader(input);
             var header = ReadPrefix(reader, out var version);
 
-            var count = reader.ReadCount(MaxElements);
-            var infos = new ElementInfo[count];
-            var bounds = new Aabb[count];
-            var fingerprints = new ulong[count];
-            var offsets = new long[count];
-            var lengths = new int[count];
-            for (var i = 0; i < count; i++)
-            {
-                infos[i] = ReadInfo(reader, version);
-                var min = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
-                var max = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
-                bounds[i] = new Aabb(min, max);
-                fingerprints[i] = reader.ReadUInt64();
-                offsets[i] = reader.ReadInt64();
-                lengths[i] = reader.ReadInt32();
-            }
+            var table = ReadTable(reader, version);
 
             var blockLength = reader.ReadInt64();
             if (blockLength < 0) throw new InvalidDataException("Недопустимая длина блока сеток.");
 
-            var elements = new ElementGeometry[count];
+            var elements = new ElementGeometry[table.Length];
             long position = 0;
-            for (var i = 0; i < count; i++)
+            for (var i = 0; i < table.Length; i++)
             {
-                if (offsets[i] != position || lengths[i] < 0 || position + lengths[i] > blockLength)
+                var row = table[i];
+                if (row.Offset != position || row.Length < 0 || position + row.Length > blockLength)
                     throw new InvalidDataException("Сетка элемента не соответствует блоку сеток.");
-                var mesh = DecompressMesh(reader.ReadExactly(lengths[i]));
-                position += lengths[i];
-                elements[i] = new ElementGeometry(infos[i], mesh, bounds[i], fingerprints[i]);
+                var mesh = DecompressMesh(reader.ReadExactly(row.Length));
+                position += row.Length;
+                elements[i] = new ElementGeometry(row.Info, mesh, row.Bounds, row.Fingerprint);
             }
 
             if (position != blockLength) throw new InvalidDataException("Длина блока сеток не совпадает с таблицей.");
@@ -133,18 +123,50 @@ public static class ModelGeometryFile
         }
     }
 
+    /// <summary>Читает заголовок, таблицу элементов и опись, пропуская блок сеток без распаковки.</summary>
+    /// <param name="input">Поток с позиционированием: блок сеток пропускается через <see cref="Stream.Seek" />.</param>
+    /// <exception cref="ArgumentException">Поток не поддерживает позиционирование.</exception>
+    /// <exception cref="InvalidDataException">Неверное магическое число, версия или повреждённые данные.</exception>
+    public static ModelIndex ReadIndex(Stream input)
+    {
+        if (input is null) throw new ArgumentNullException(nameof(input));
+        if (!input.CanSeek) throw new ArgumentException("Оглавление читается только из потока с позиционированием.", nameof(input));
+
+        try
+        {
+            using var reader = BinaryIo.CreateReader(input);
+            var header = ReadPrefix(reader, out var version);
+            var table = ReadTable(reader, version);
+
+            var blockLength = reader.ReadInt64();
+            if (blockLength < 0 || blockLength > input.Length - input.Position)
+                throw new InvalidDataException("Недопустимая длина блока сеток.");
+            long expected = 0;
+            foreach (var row in table)
+            {
+                if (row.Offset != expected || row.Length < 0) throw new InvalidDataException("Сетка элемента не соответствует блоку сеток.");
+                expected += row.Length;
+            }
+
+            if (expected != blockLength) throw new InvalidDataException("Длина блока сеток не совпадает с таблицей.");
+            input.Seek(blockLength, SeekOrigin.Current);
+
+            var inventory = reader.ReadStrings(MaxElements);
+            var entries = table.Select(row => new ModelIndexEntry(row.Info, row.Bounds, row.Fingerprint, row.TriangleCount)).ToArray();
+            return new ModelIndex(header, entries, inventory);
+        }
+        catch (Exception e) when (e is EndOfStreamException or ArgumentException or OverflowException or FormatException)
+        {
+            throw new InvalidDataException("Файл геометрии повреждён.", e);
+        }
+    }
+
     /// <summary>Смещение начала блока сеток от начала файла: всё до него читается без распаковки.</summary>
     internal static long ReadMeshBlockOffset(Stream input)
     {
         using var reader = BinaryIo.CreateReader(input);
         ReadPrefix(reader, out var version);
-        var count = reader.ReadCount(MaxElements);
-        for (var i = 0; i < count; i++)
-        {
-            ReadInfo(reader, version);
-            reader.ReadExactly(6 * sizeof(float) + sizeof(ulong) + sizeof(long) + sizeof(int));
-        }
-
+        ReadTable(reader, version);
         reader.ReadInt64();
         return input.Position;
     }
@@ -153,7 +175,7 @@ public static class ModelGeometryFile
     {
         if (reader.ReadUInt32() != Magic) throw new InvalidDataException("Это не файл геометрии ToadClash.");
         version = reader.ReadInt32();
-        if (version is not (1 or FormatVersion))
+        if (version is < 1 or > FormatVersion)
             throw new InvalidDataException($"Неподдерживаемая версия файла геометрии: {version}.");
 
         var modelKey = reader.ReadString();
@@ -170,6 +192,27 @@ public static class ModelGeometryFile
             .ToOffset(TimeSpan.FromMinutes(offsetMinutes));
         return new ModelHeader(modelKey, sourcePath, revitYear, extractedAt, complete, viewName, originX, originY, originZ);
     }
+
+    private static TableRow[] ReadTable(BinaryReader reader, int version)
+    {
+        var count = reader.ReadCount(MaxElements);
+        var table = new TableRow[count];
+        for (var i = 0; i < count; i++)
+        {
+            var info = ReadInfo(reader, version);
+            var min = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+            var max = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+            var fingerprint = reader.ReadUInt64();
+            var offset = reader.ReadInt64();
+            var length = reader.ReadInt32();
+            var triangles = version >= 3 ? reader.ReadInt32() : -1;
+            table[i] = new TableRow(info, new Aabb(min, max), fingerprint, offset, length, triangles);
+        }
+
+        return table;
+    }
+
+    private readonly record struct TableRow(ElementInfo Info, Aabb Bounds, ulong Fingerprint, long Offset, int Length, int TriangleCount);
 
     private static void WriteHeader(BinaryWriter writer, ModelHeader header)
     {

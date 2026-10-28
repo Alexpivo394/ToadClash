@@ -139,8 +139,8 @@ public sealed class ModelGeometryFileTests
     {
         var bytes = Serialize(Sample());
         var blockLengthPosition = (int)ModelGeometryFile.ReadMeshBlockOffset(new MemoryStream(bytes)) - sizeof(long);
-        // Last table entry ends with offset (long) and length (int), right before the block length.
-        var offsetPosition = blockLengthPosition - sizeof(long) - sizeof(int);
+        // Last table entry ends with offset (long), length (int) and triangle count (int), right before the block length.
+        var offsetPosition = blockLengthPosition - sizeof(long) - 2 * sizeof(int);
         bytes[offsetPosition] ^= 1;
 
         Should.Throw<InvalidDataException>(() => ModelGeometryFile.Read(new MemoryStream(bytes)));
