@@ -98,7 +98,7 @@ public sealed class ModelGeometryFileTests
     {
         var original = Sample();
         var bytes = Serialize(original);
-        var meshBlockStart = (int)ModelGeometryFile.ReadMeshBlockOffset(new MemoryStream(bytes));
+        var meshBlockStart = (int)ModelGeometryFile.ReadIndex(new MemoryStream(bytes)).Elements[0].MeshOffset;
         var truncated = bytes.AsSpan(0, meshBlockStart).ToArray();
 
         var header = ModelGeometryFile.ReadHeader(new MemoryStream(truncated));
@@ -138,7 +138,7 @@ public sealed class ModelGeometryFileTests
     public void Read_TamperedMeshOffset_Throws()
     {
         var bytes = Serialize(Sample());
-        var blockLengthPosition = (int)ModelGeometryFile.ReadMeshBlockOffset(new MemoryStream(bytes)) - sizeof(long);
+        var blockLengthPosition = (int)ModelGeometryFile.ReadIndex(new MemoryStream(bytes)).Elements[0].MeshOffset - sizeof(long);
         // Last table entry ends with offset (long), length (int) and triangle count (int), right before the block length.
         var offsetPosition = blockLengthPosition - sizeof(long) - 2 * sizeof(int);
         bytes[offsetPosition] ^= 1;
@@ -150,7 +150,7 @@ public sealed class ModelGeometryFileTests
     public void Read_BlockLengthNotMatchingMeshLengths_Throws()
     {
         var bytes = Serialize(Sample());
-        var blockLengthPosition = (int)ModelGeometryFile.ReadMeshBlockOffset(new MemoryStream(bytes)) - sizeof(long);
+        var blockLengthPosition = (int)ModelGeometryFile.ReadIndex(new MemoryStream(bytes)).Elements[0].MeshOffset - sizeof(long);
         bytes[blockLengthPosition] += 1;
 
         Should.Throw<InvalidDataException>(() => ModelGeometryFile.Read(new MemoryStream(bytes)));

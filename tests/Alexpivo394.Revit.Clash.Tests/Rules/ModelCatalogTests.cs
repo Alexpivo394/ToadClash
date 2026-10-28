@@ -12,7 +12,7 @@ public sealed class ModelCatalogTests
 
     private static ModelIndexEntry Entry(string uid, string category, string? family = null, string? type = null, string? level = null,
         string? workset = null) =>
-        new(new ElementInfo(uid, 1, category, family, type, level, workset, []), new Aabb(Vector3.Zero, Vector3.One), 0, 1);
+        new(new ElementInfo(uid, 1, category, family, type, level, workset, []), new Aabb(Vector3.Zero, Vector3.One), 0, 1, 0, 0);
 
     private static ModelIndex Index(params ModelIndexEntry[] entries) =>
         new(new ModelHeader("k", "p", 2022, DateTimeOffset.UnixEpoch, true, "v", 0, 0, 0), entries, entries.Select(e => e.Info.UniqueId).ToArray());

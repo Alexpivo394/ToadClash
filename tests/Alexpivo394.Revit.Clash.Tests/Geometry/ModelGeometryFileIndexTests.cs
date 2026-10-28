@@ -65,7 +65,7 @@ public sealed class ModelGeometryFileIndexTests
     public void ReadIndex_DoesNotDecompressMeshes()
     {
         var bytes = Serialize(Sample());
-        var meshBlockStart = (int)ModelGeometryFile.ReadMeshBlockOffset(new MemoryStream(bytes));
+        var meshBlockStart = (int)ModelGeometryFile.ReadIndex(new MemoryStream(bytes)).Elements[0].MeshOffset;
         var meshBlockLength = BitConverter.ToInt64(bytes, meshBlockStart - sizeof(long));
         for (var i = 0; i < meshBlockLength; i++) bytes[meshBlockStart + i] = 0xAB;
 
@@ -105,6 +105,64 @@ public sealed class ModelGeometryFileIndexTests
         var bytes = Serialize(Sample());
 
         Should.Throw<InvalidDataException>(() => ModelGeometryFile.ReadIndex(new MemoryStream(bytes, 0, bytes.Length - 3)));
+    }
+
+    [Test]
+    public void ReadMesh_EveryElement_EqualsFullRead()
+    {
+        var bytes = Serialize(Sample());
+        var full = ModelGeometryFile.Read(new MemoryStream(bytes));
+        var index = ModelGeometryFile.ReadIndex(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+
+        foreach (var i in new[] { 2, 0, 1 })
+        {
+            var mesh = ModelGeometryFile.ReadMesh(stream, index.Elements[i]);
+            mesh.Positions.ShouldBe(full.Elements[i].Mesh.Positions);
+            mesh.Indices.ShouldBe(full.Elements[i].Mesh.Indices);
+        }
+    }
+
+    [Test]
+    public void ReadMesh_Version2File_OffsetsFilled()
+    {
+        var bytes = Convert.FromBase64String(Version2);
+        var index = ModelGeometryFile.ReadIndex(new MemoryStream(bytes));
+        using var stream = new MemoryStream(bytes);
+
+        index.Elements.ShouldAllBe(e => e.MeshOffset > 0 && e.MeshLength > 0);
+        ModelGeometryFile.ReadMesh(stream, index.Elements[1]).TriangleCount.ShouldBe(2);
+        ModelGeometryFile.ReadMesh(stream, index.Elements[0]).TriangleCount.ShouldBe(1);
+    }
+
+    [Test]
+    public void ReadMesh_OffsetBeyondFile_Throws()
+    {
+        var bytes = Serialize(Sample());
+        var entry = ModelGeometryFile.ReadIndex(new MemoryStream(bytes)).Elements[0];
+
+        Should.Throw<InvalidDataException>(() => ModelGeometryFile.ReadMesh(new MemoryStream(bytes), entry with { MeshOffset = bytes.Length - 2 }));
+        Should.Throw<InvalidDataException>(() => ModelGeometryFile.ReadMesh(new MemoryStream(bytes), entry with { MeshOffset = -1 }));
+        Should.Throw<InvalidDataException>(() => ModelGeometryFile.ReadMesh(new MemoryStream(bytes), entry with { MeshLength = -5 }));
+    }
+
+    [Test]
+    public void ReadMesh_CorruptBlock_Throws()
+    {
+        var bytes = Serialize(Sample());
+        var entry = ModelGeometryFile.ReadIndex(new MemoryStream(bytes)).Elements[1];
+        for (var i = 0; i < entry.MeshLength; i++) bytes[entry.MeshOffset + i] = 0xAB;
+
+        Should.Throw<InvalidDataException>(() => ModelGeometryFile.ReadMesh(new MemoryStream(bytes), entry));
+    }
+
+    [Test]
+    public void ReadMesh_NonSeekable_Throws()
+    {
+        var bytes = Serialize(Sample());
+        var entry = ModelGeometryFile.ReadIndex(new MemoryStream(bytes)).Elements[0];
+
+        Should.Throw<ArgumentException>(() => ModelGeometryFile.ReadMesh(new ForwardOnlyStream(new MemoryStream(bytes)), entry));
     }
 
     private sealed class ForwardOnlyStream(Stream inner) : Stream

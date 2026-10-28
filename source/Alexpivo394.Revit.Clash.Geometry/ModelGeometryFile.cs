@@ -149,10 +149,13 @@ public static class ModelGeometryFile
             }
 
             if (expected != blockLength) throw new InvalidDataException("Длина блока сеток не совпадает с таблицей.");
+            var blockStart = input.Position;
             input.Seek(blockLength, SeekOrigin.Current);
 
             var inventory = reader.ReadStrings(MaxElements);
-            var entries = table.Select(row => new ModelIndexEntry(row.Info, row.Bounds, row.Fingerprint, row.TriangleCount)).ToArray();
+            var entries = table
+                .Select(row => new ModelIndexEntry(row.Info, row.Bounds, row.Fingerprint, row.TriangleCount, blockStart + row.Offset, row.Length))
+                .ToArray();
             return new ModelIndex(header, entries, inventory);
         }
         catch (Exception e) when (e is EndOfStreamException or ArgumentException or OverflowException or FormatException)
@@ -161,14 +164,28 @@ public static class ModelGeometryFile
         }
     }
 
-    /// <summary>Смещение начала блока сеток от начала файла: всё до него читается без распаковки.</summary>
-    internal static long ReadMeshBlockOffset(Stream input)
+    /// <summary>Читает и распаковывает одну сетку по записи оглавления того же файла.</summary>
+    /// <param name="input">Поток файла с позиционированием; позиция после чтения не определена.</param>
+    /// <exception cref="ArgumentException">Поток не поддерживает позиционирование.</exception>
+    /// <exception cref="InvalidDataException">Смещение или длина вне файла, повреждённые данные сетки.</exception>
+    public static ElementMesh ReadMesh(Stream input, ModelIndexEntry entry)
     {
-        using var reader = BinaryIo.CreateReader(input);
-        ReadPrefix(reader, out var version);
-        ReadTable(reader, version);
-        reader.ReadInt64();
-        return input.Position;
+        if (input is null) throw new ArgumentNullException(nameof(input));
+        if (entry is null) throw new ArgumentNullException(nameof(entry));
+        if (!input.CanSeek) throw new ArgumentException("Сетка читается только из потока с позиционированием.", nameof(input));
+        if (entry.MeshOffset < 0 || entry.MeshLength < 0 || entry.MeshOffset + entry.MeshLength > input.Length)
+            throw new InvalidDataException("Сетка элемента вне файла геометрии.");
+
+        try
+        {
+            input.Seek(entry.MeshOffset, SeekOrigin.Begin);
+            using var reader = BinaryIo.CreateReader(input);
+            return DecompressMesh(reader.ReadExactly(entry.MeshLength));
+        }
+        catch (Exception e) when (e is EndOfStreamException or ArgumentException or OverflowException or FormatException)
+        {
+            throw new InvalidDataException("Файл геометрии повреждён.", e);
+        }
     }
 
     private static ModelHeader ReadPrefix(BinaryReader reader, out int version)
