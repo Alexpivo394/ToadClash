@@ -11,6 +11,9 @@ public static class GeometryExtractor
 
     private const double FeetToMillimeters = 304.8;
 
+    private const int ProgressEvery = 500;
+    private static readonly TimeSpan ProgressInterval = TimeSpan.FromSeconds(2);
+
     /// <summary>
     ///     Видимые на виде элементы с геометрией + опись всех элементов модели (без видов, типов, элементов без категории).
     ///     Учитываются только элементы модельных встроенных категорий; группы, сборки и связанные модели не выгружаются.
@@ -21,11 +24,21 @@ public static class GeometryExtractor
     /// <param name="ct">Отмена между элементами.</param>
     /// <exception cref="ArgumentException">В документе нет 3D-вида с именем <see cref="ExtractOptions.ViewName"/>.</exception>
     /// <exception cref="OperationCanceledException">Выгрузка отменена.</exception>
-    public static (ModelGeometry Geometry, ModelParameters Parameters) Extract(Document doc, ExtractOptions options, CancellationToken ct)
+    public static (ModelGeometry Geometry, ModelParameters Parameters) Extract(Document doc, ExtractOptions options, CancellationToken ct) =>
+        Extract(doc, options, null, ct);
+
+    /// <summary>То же, что <see cref="Extract(Document, ExtractOptions, CancellationToken)" />, с сообщениями о ходе выгрузки.</summary>
+    /// <param name="progress">
+    ///     Ход по этапам: о первом и последнем элементе этапа всегда, о промежуточных — каждые 500 элементов, но не чаще
+    ///     раза в 2 с. Вызывается в потоке выгрузки. null — без сообщений.
+    /// </param>
+    public static (ModelGeometry Geometry, ModelParameters Parameters) Extract(Document doc, ExtractOptions options, IProgress<ExtractProgress>? progress,
+        CancellationToken ct)
     {
         if (doc is null) throw new ArgumentNullException(nameof(doc));
         if (options is null) throw new ArgumentNullException(nameof(options));
 
+        progress?.Report(new ExtractProgress(ExtractStage.Collecting, 0, 0));
         var view = FindView(doc, options.ViewName);
         var categoryNames = ModelCategoryNames(doc);
         var categories = categoryNames.Keys.ToList();
@@ -48,9 +61,12 @@ public static class GeometryExtractor
         var parameterReader = new ParameterReader();
         var elements = new List<ElementGeometry>(visible.Count);
         var parameters = new Dictionary<string, IReadOnlyList<ParameterValue>>(visible.Count, StringComparer.Ordinal);
+        var throttle = new ProgressThrottle(ProgressEvery, ProgressInterval);
+        var done = 0;
         foreach (var element in visible)
         {
             ct.ThrowIfCancellationRequested();
+            Report(ExtractStage.Elements, ++done, visible.Count);
 
             var mesh = Tessellate(element, geometryOptions, coordinates, origin, options.TriangulationLevelOfDetail);
             if (mesh.TriangleCount == 0) continue;
@@ -60,15 +76,25 @@ public static class GeometryExtractor
             parameters[info.UniqueId] = parameterReader.Read(element);
         }
 
-        var inventory = new List<string>();
-        foreach (var element in doc.CollectElements().WhereElementIsNotElementType().OfCategories(categories))
+        var all = doc.CollectElements().WhereElementIsNotElementType().OfCategories(categories).ToList();
+        var inventory = new List<string>(all.Count);
+        throttle = new ProgressThrottle(ProgressEvery, ProgressInterval);
+        done = 0;
+        foreach (var element in all)
         {
             ct.ThrowIfCancellationRequested();
+            Report(ExtractStage.Inventory, ++done, all.Count);
             if (!IsContainer(element)) inventory.Add(element.UniqueId);
         }
 
         var geometry = new ModelGeometry(header with { Complete = true }, elements, inventory);
         return (geometry, new ModelParameters(parameters));
+
+        void Report(ExtractStage stage, int current, int total)
+        {
+            if (progress is not null && throttle.ShouldReport(current, total, DateTimeOffset.UtcNow))
+                progress.Report(new ExtractProgress(stage, current, total));
+        }
     }
 
     private static View3D FindView(Document doc, string viewName)
