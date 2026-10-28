@@ -15,5 +15,7 @@
     <Compile Include="../../source/Alexpivo394.Revit.Clash.Revit/GeometryExtractor.cs" Link="Production/GeometryExtractor.cs"/>
     <Compile Include="../../source/Alexpivo394.Revit.Clash.Revit/MeshBuilder.cs" Link="Production/MeshBuilder.cs"/>
     <Compile Include="../../source/Alexpivo394.Revit.Clash.Revit/ExtractOptions.cs" Link="Production/ExtractOptions.cs"/>
+    <Compile Include="../../source/Alexpivo394.Revit.Clash.Revit/ExtractProgress.cs" Link="Production/ExtractProgress.cs"/>
+    <Compile Include="../../source/Alexpivo394.Revit.Clash.Revit/ProgressThrottle.cs" Link="Production/ProgressThrottle.cs"/>
   </ItemGroup>
 </Project>
