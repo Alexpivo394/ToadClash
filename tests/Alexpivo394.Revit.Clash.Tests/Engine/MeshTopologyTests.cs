@@ -64,6 +64,33 @@ public sealed class MeshTopologyTests
     }
 
     [Test]
+    public void BodiesTouchingAlongEdge_Closed_EachOrientedSeparately()
+    {
+        // Корпус и фланец касаются по ребру: после сварки ребро общее для четырёх треугольников.
+        var other = TestScenes.Box(new Vector3(10, 10, 0), new Vector3(20, 20, 10));
+        float[] positions = [.. Cube.Positions, .. other.Positions];
+        int[] expected = [.. Cube.Indices, .. other.Indices.Select(i => i + 8)];
+        int[] mixed = [.. Cube.Indices, .. Inverted(other.Indices).Select(i => i + 8)];
+
+        var oriented = MeshTopology.Orient(positions, mixed, out var closed);
+
+        closed.ShouldBeTrue();
+        oriented.ShouldBe(expected);
+    }
+
+    [Test]
+    public void BodiesTouchingAlongEdge_WithHole_Open()
+    {
+        var other = TestScenes.Box(new Vector3(10, 10, 0), new Vector3(20, 20, 10));
+        float[] positions = [.. Cube.Positions, .. other.Positions];
+        int[] indices = [.. Cube.Indices, .. other.Indices[..^3].Select(i => i + 8)];
+
+        MeshTopology.Orient(positions, indices, out var closed);
+
+        closed.ShouldBeFalse();
+    }
+
+    [Test]
     public void OpenMesh_KeepsWinding()
     {
         var open = Inverted(Cube.Indices[..^6]);
