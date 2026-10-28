@@ -9,8 +9,7 @@
 - `Alexpivo394.Revit.Clash.Geometry` — формат геометрии элементов (сетки, бинарное чтение и запись), без Revit API.
 - `Alexpivo394.Revit.Clash.Rules` — правила: наборы выбора, матрица проверок и допуски, без Revit API.
 - `Alexpivo394.Revit.Clash.Engine` — движок поиска пересечений сеток по правилам, без Revit API.
-
-- `Alexpivo394.Revit.Clash.Revit` — выгрузка геометрии и параметров заданного 3D-вида Revit 2020–2027.
+- `Alexpivo394.Revit.Clash.Revit.{год}` — выгрузка геометрии и параметров заданного 3D-вида, по пакету на каждый Revit 2020–2027. Версия пакета — `{год}.{версия ядра}`, например `2022.1.0`.
 
 ## Сборка и тесты
 
@@ -18,6 +17,15 @@
 dotnet build ToadClash.slnx
 dotnet test --project tests/Alexpivo394.Revit.Clash.Tests
 ```
+
+Пакеты собирает пайплайн в `build/` (ModularPipelines, как в ToadExport). Пакеты попадают в `output/`:
+
+```
+cd build
+DOTNET_ENVIRONMENT=Development Publish__Version=1.0.0 dotnet run -c Release -- pack
+```
+
+`-- pack publish` дополнительно публикует пакеты на nuget.org и создаёт релиз на GitHub.
 
 ## Служебные инструменты этапа 0
 

@@ -44,6 +44,17 @@
         <PackageVersion Include="Shouldly" Version="4.3.0"/>
     </ItemGroup>
 
+    <!-- Сборка пакетов (build/, ModularPipelines) — как в ToadExport -->
+    <ItemGroup>
+        <PackageVersion Include="Sourcy.DotNet" Version="1.1.1"/>
+        <PackageVersion Include="ModularPipelines" Version="3.2.8"/>
+        <PackageVersion Include="ModularPipelines.Git" Version="3.2.8"/>
+        <PackageVersion Include="ModularPipelines.GitHub" Version="3.2.8"/>
+        <PackageVersion Include="ModularPipelines.DotNet" Version="3.2.8"/>
+        <PackageVersion Include="Microsoft.VisualStudio.SolutionPersistence" Version="1.0.52"/>
+        <PackageVersion Include="JetBrains.Annotations" Version="2026.2.0"/>
+    </ItemGroup>
+
     <!-- Development -->
     <ItemGroup>
         <PackageVersion Include="Polyfill" Version="10.10.0"/>

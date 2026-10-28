@@ -21,6 +21,7 @@
     <!-- Сшивка сеток без Revit API: файл подключается ссылкой, поэтому проекту не нужен Revit SDK -->
     <ItemGroup>
         <Compile Include="..\..\source\Alexpivo394.Revit.Clash.Revit\MeshBuilder.cs" Link="Linked\Revit\MeshBuilder.cs"/>
+        <Compile Include="..\..\source\Alexpivo394.Revit.Clash.Revit\ProgressThrottle.cs" Link="Linked\Revit\ProgressThrottle.cs"/>
     </ItemGroup>
 
 </Project>

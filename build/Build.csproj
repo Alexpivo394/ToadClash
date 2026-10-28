@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <UserSecretsId>5b0e1c42-6f4a-4f0e-9a3c-7c1d2e9b8a10</UserSecretsId>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Sourcy.DotNet"/>
+        <PackageReference Include="Shouldly"/>
+        <PackageReference Include="ModularPipelines"/>
+        <PackageReference Include="ModularPipelines.Git"/>
+        <PackageReference Include="ModularPipelines.GitHub"/>
+        <PackageReference Include="ModularPipelines.DotNet"/>
+        <PackageReference Include="JetBrains.Annotations"/>
+        <PackageReference Include="Microsoft.VisualStudio.SolutionPersistence"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest"/>
+    </ItemGroup>
+
+</Project>

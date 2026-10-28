@@ -293,4 +293,11 @@
       <BuildType Solution="Release.R27|*" Project="Release" />
       <Build Solution="Release.R27|*" Project="false" />
     </Project></Folder>
+  <Folder Name="/build/">
+    <Project Path="build/Build.csproj">
+      <BuildType Project="Release" />
+      <Build Project="false" />
+    </Project>
+    <File Path="build/appsettings.json" />
+  </Folder>
 </Solution>
