@@ -44,12 +44,12 @@ public static class SyntheticGenerationRun
                 total += Generate(application, options, templates, directory, section, extract, journal, cancellationToken);
             }
             if (total < options.MinimumElementCount) throw new InvalidOperationException("Число созданных основных элементов меньше расчётного.");
-            var sets = options.Sections.Select(section => new SelectionSet(Guid.NewGuid(), section, section,
+            var sets = options.Sections.Select(section => new DisciplineSet(Guid.NewGuid(), section, section,
                 new[] { new ConditionGroup(Array.Empty<Condition>()) })).ToArray();
             var matrix = options.Sections.SelectMany((section, index) => options.Sections.Skip(index)
-                .Select(other => new MatrixCell(section, other, true))).ToArray();
+                .Select(other => new DisciplineCell(section, other, true))).ToArray();
             File.WriteAllText(Path.Combine(directory, "config.json"),
-                ConfigurationJson.Serialize(new ClashConfiguration(sets, matrix, Array.Empty<SetPairExclusion>())));
+                ConfigurationJson.Serialize(ConfigurationDefaults.FromDisciplines(sets, matrix, Array.Empty<SetPairExclusion>())));
             using var complete = new StreamWriter(new FileStream(Path.Combine(directory, "COMPLETE.txt"), FileMode.CreateNew));
             complete.WriteLine($"primaryElements={total}; requestedMinimum={options.MinimumElementCount}; extracted={extract}");
             journal.WriteLine($"COMPLETE primaryElements={total}");

@@ -29,7 +29,7 @@ public static class NavisCompare
         if (left.Geometry.Header.ModelKey == right.Geometry.Header.ModelKey &&
             (!ReferenceEquals(left.Geometry, right.Geometry) || left.Discipline != right.Discipline))
             throw new InvalidDataException("Для проверки модели самой с собой укажите один слепок и один раздел.");
-        if (configuration.CellFor(left.Discipline, right.Discipline) is not { Enabled: true })
+        if (configuration.CellFor(ConfigurationDefaults.DisciplineGroupId(left.Discipline), ConfigurationDefaults.DisciplineGroupId(right.Discipline)) is not { Enabled: true })
             throw new InvalidDataException("В конфигурации не включена пара разделов отчёта.");
         ModelInput[] sides = ReferenceEquals(left, right) ? [left] : [left, right];
         var lookups = sides.Select(side => side.Geometry.Elements.ToDictionary(element => element.Info.ElementId)).ToArray();

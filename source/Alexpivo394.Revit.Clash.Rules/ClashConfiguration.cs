@@ -1,29 +1,35 @@
 namespace Alexpivo394.Revit.Clash.Rules;
 
-/// <summary>Ячейка матрицы проверок для пары разделов; порядок разделов не важен.</summary>
-public sealed record MatrixCell(string DisciplineA, string DisciplineB, bool Enabled, double ToleranceMm = 20);
+/// <summary>Клетка матрицы проверок для пары групп; порядок групп не важен.</summary>
+public sealed record MatrixCell(Guid GroupA, Guid GroupB, bool Enabled, double ToleranceMm = 20);
 
 /// <summary>Пара наборов, исключённая из проверки.</summary>
 public sealed record SetPairExclusion(Guid SetA, Guid SetB);
 
-/// <summary>Конфигурация проверки: наборы, матрица разделов, исключения.</summary>
+/// <summary>Конфигурация проверки: группы, их наборы, матрица групп, исключения.</summary>
 public sealed record ClashConfiguration(
+    IReadOnlyList<SetGroup> Groups,
     IReadOnlyList<SelectionSet> Sets,
     IReadOnlyList<MatrixCell> Matrix,
     IReadOnlyList<SetPairExclusion> Exclusions,
     bool IgnoreConnectedMep = true)
 {
-    /// <summary>Ячейка матрицы для пары разделов без учёта порядка и регистра; null, если ячейки нет.</summary>
-    public MatrixCell? CellFor(string a, string b)
+    /// <summary>Клетка матрицы для пары групп без учёта порядка; null, если клетки нет.</summary>
+    public MatrixCell? CellFor(Guid a, Guid b)
     {
         foreach (var cell in Matrix)
         {
-            if (Same(cell.DisciplineA, a) && Same(cell.DisciplineB, b)) return cell;
-            if (Same(cell.DisciplineA, b) && Same(cell.DisciplineB, a)) return cell;
+            if (cell.GroupA == a && cell.GroupB == b) return cell;
+            if (cell.GroupA == b && cell.GroupB == a) return cell;
         }
 
         return null;
     }
 
-    private static bool Same(string x, string y) => string.Equals(x, y, StringComparison.OrdinalIgnoreCase);
+    /// <summary>Группа набора; null, если набора или его группы нет.</summary>
+    public SetGroup? GroupOf(Guid setId)
+    {
+        var set = Sets.FirstOrDefault(s => s.Id == setId);
+        return set is null ? null : Groups.FirstOrDefault(g => g.Id == set.GroupId);
+    }
 }

@@ -108,16 +108,16 @@ public static class SyntheticPart
     /// <summary>Конфигурация: набор на раздел (все элементы с категорией), матрица - все пары разделов, допуск 20.</summary>
     public static ClashConfiguration CreateConfiguration()
     {
-        var sets = Disciplines.Select(d => new SelectionSet(
+        var sets = Disciplines.Select(d => new DisciplineSet(
             StableGuid(d),
             d,
             $"Все элементы {d}",
             [new ConditionGroup([new Condition(new PropertyRef(PropertyKind.Category), ConditionOperator.IsNotEmpty, null)])])).ToList();
-        var matrix = new List<MatrixCell>();
+        var matrix = new List<DisciplineCell>();
         for (var i = 0; i < Disciplines.Count; i++)
         for (var j = i; j < Disciplines.Count; j++)
-            matrix.Add(new MatrixCell(Disciplines[i], Disciplines[j], true, 20));
-        return new ClashConfiguration(sets, matrix, []);
+            matrix.Add(new DisciplineCell(Disciplines[i], Disciplines[j], true, 20));
+        return ConfigurationDefaults.FromDisciplines(sets, matrix, []);
     }
 
     private static Guid StableGuid(string name) => new(MD5.HashData(Encoding.UTF8.GetBytes(name)));

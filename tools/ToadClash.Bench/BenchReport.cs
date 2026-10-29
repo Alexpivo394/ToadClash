@@ -40,8 +40,8 @@ public sealed record BenchReport(
         var total = Stopwatch.StartNew();
         var config = ConfigurationJson.Deserialize(File.ReadAllText(Path.Combine(directory, "config.json")));
         var mapping = ReadMapping(directory);
-        var disciplines = config.Sets.Select(set => set.Discipline)
-            .Concat(config.Matrix.SelectMany(cell => new[] { cell.DisciplineA, cell.DisciplineB }))
+        var disciplines = config.Groups.SelectMany(group => group.Source.Disciplines)
+
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var files = EnumerateGeometry(directory).Order(StringComparer.Ordinal).ToArray();
         if (files.Length == 0) throw new InvalidDataException("В каталоге нет готовых файлов геометрии .tcg.");

@@ -4,36 +4,49 @@ namespace Alexpivo394.Revit.Clash.Rules;
 public sealed record SetPreviewElement(string ModelKey, string UniqueId, long ElementId, string Category, string? Family, string? Type);
 
 /// <summary>Сколько элементов попало в набор.</summary>
-/// <param name="Total">Сколько всего элементов в моделях раздела набора.</param>
+/// <param name="Total">Сколько всего элементов в источнике группы набора.</param>
+/// <param name="ByAnyOf">Сколько элементов отобрала каждая группа условий «или» по отдельности.</param>
 /// <param name="Sample">Первые попавшие элементы — показать, что именно отобрано.</param>
-public sealed record SetPreviewResult(int Matched, int Total, IReadOnlyList<SetPreviewElement> Sample);
+public sealed record SetPreviewResult(int Matched, int Total, IReadOnlyList<int> ByAnyOf, IReadOnlyList<SetPreviewElement> Sample);
 
-/// <summary>Предпросмотр набора в редакторе: сколько элементов его раздела он отбирает.</summary>
+/// <summary>Предпросмотр набора в редакторе: сколько элементов источника его группы он отбирает.</summary>
 public static class SetPreview
 {
-    public static SetPreviewResult Count(SelectionSet set, IReadOnlyList<ElementsInput> models, int sample = 20)
+    /// <exception cref="KeyNotFoundException">Набора нет в конфигурации.</exception>
+    public static SetPreviewResult Count(ClashConfiguration config, Guid setId, IReadOnlyList<ElementsInput> models, int sample = 20)
     {
-        if (set is null) throw new ArgumentNullException(nameof(set));
+        if (config is null) throw new ArgumentNullException(nameof(config));
         if (models is null) throw new ArgumentNullException(nameof(models));
+        var set = config.Sets.FirstOrDefault(s => s.Id == setId) ?? throw new KeyNotFoundException($"Набора {setId} нет в конфигурации.");
+        var group = config.Groups.FirstOrDefault(g => g.Id == set.GroupId);
 
         var matched = 0;
         var total = 0;
+        var byAnyOf = new int[set.AnyOf.Count];
         var elements = new List<SetPreviewElement>(Math.Max(0, sample));
         foreach (var model in models)
         {
-            if (!string.Equals(model.Discipline, set.Discipline, StringComparison.OrdinalIgnoreCase)) continue;
+            if (group is null || !group.Source.Includes(model.Discipline, model.ModelKey)) continue;
 
             foreach (var info in model.Elements)
             {
                 total++;
-                if (!SetMembership.Matches(set, info, model.Parameters.For(info.UniqueId))) continue;
+                var parameters = model.Parameters.For(info.UniqueId);
+                var any = false;
+                for (var i = 0; i < set.AnyOf.Count; i++)
+                {
+                    if (!SetMembership.MatchesAll(set.AnyOf[i], info, parameters)) continue;
+                    byAnyOf[i]++;
+                    any = true;
+                }
 
+                if (!any) continue;
                 matched++;
                 if (elements.Count < sample)
                     elements.Add(new SetPreviewElement(model.ModelKey, info.UniqueId, info.ElementId, info.Category, info.Family, info.Type));
             }
         }
 
-        return new SetPreviewResult(matched, total, elements);
+        return new SetPreviewResult(matched, total, byAnyOf, elements);
     }
 }

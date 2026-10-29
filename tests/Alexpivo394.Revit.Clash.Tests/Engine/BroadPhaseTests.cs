@@ -12,7 +12,7 @@ public sealed class BroadPhaseTests
     private static readonly SelectionSet PipeSet = TestScenes.CategorySet("OV", "OST_PipeCurves");
     private static readonly SelectionSet WallSet = TestScenes.CategorySet("AR", "OST_Walls");
 
-    private static ClashConfiguration Config(params MatrixCell[] cells) => new([PipeSet, WallSet], cells, []);
+    private static ClashConfiguration Config(params MatrixCell[] cells) => TestScenes.Config([PipeSet, WallSet], cells, []);
 
     private static List<CandidatePair> Run(ClashConfiguration config, out ClashScene scene, params ModelInput[] models)
     {
@@ -23,7 +23,7 @@ public sealed class BroadPhaseTests
     [Test]
     public void OverlappingBoxes_AreCandidates()
     {
-        var pairs = Run(Config(new MatrixCell("OV", "AR", true, 25)), out var scene,
+        var pairs = Run(Config(TestScenes.Cell("OV", "AR", true, 25)), out var scene,
             TestScenes.Model("ov", "OV", Zero, [new("p", "OST_PipeCurves", TestScenes.Box(Vector3.Zero, new Vector3(10)))]),
             TestScenes.Model("ar", "AR", Zero, [
                 new("w1", "OST_Walls", TestScenes.Box(new Vector3(5), new Vector3(20))),
@@ -41,7 +41,7 @@ public sealed class BroadPhaseTests
     public void EmptyAndDegenerateMeshes_AreSkipped()
     {
         var degenerate = new ElementMesh([0, 0, 0, 1, 0, 0, 2, 0, 0], [0, 1, 2]);
-        var pairs = Run(Config(new MatrixCell("OV", "AR", true)), out var scene,
+        var pairs = Run(Config(TestScenes.Cell("OV", "AR", true)), out var scene,
             TestScenes.Model("ov", "OV", Zero, [
                 new("empty", "OST_PipeCurves", new ElementMesh([], [])),
                 new("flat", "OST_PipeCurves", degenerate),
@@ -56,7 +56,7 @@ public sealed class BroadPhaseTests
     [Test]
     public void ElementsOutsideSets_AreSkipped()
     {
-        Run(Config(new MatrixCell("OV", "AR", true)), out var scene,
+        Run(Config(TestScenes.Cell("OV", "AR", true)), out var scene,
             TestScenes.Model("ov", "OV", Zero, [new("x", "OST_Doors", TestScenes.Box(Vector3.Zero, new Vector3(10)))]));
 
         scene.ElementCount.ShouldBe(0);
@@ -73,7 +73,7 @@ public sealed class BroadPhaseTests
             .Select(i => new TestScenes.Item($"w{i}", "OST_Walls",
                 TestScenes.Box(new Vector3(i % 10 * 9, i / 10 * 9, 0), new Vector3(i % 10 * 9 + 12, i / 10 * 9 + 12, 8))))
             .ToList();
-        var config = Config(new MatrixCell("OV", "OV", true), new MatrixCell("OV", "AR", true));
+        var config = Config(TestScenes.Cell("OV", "OV", true), TestScenes.Cell("OV", "AR", true));
 
         var pairs = Run(config, out var scene,
             TestScenes.Model("ov", "OV", Zero, pipes), TestScenes.Model("ar", "AR", Zero, walls));
@@ -86,7 +86,7 @@ public sealed class BroadPhaseTests
             {
                 var da = scene.Elements[a].Discipline;
                 var db = scene.Elements[b].Discipline;
-                var enabled = da != db || scene.Disciplines[da] == "OV";
+                var enabled = da != db || scene.Disciplines[da] == ConfigurationDefaults.DisciplineGroupId("OV");
                 if (enabled && scene.Elements[a].Bounds.Overlaps(scene.Elements[b].Bounds)) expected.Add((a, b));
             }
         }
@@ -100,7 +100,7 @@ public sealed class BroadPhaseTests
     [Test]
     public void ModelsWithDifferentOrigins_AreRebasedToSceneOrigin()
     {
-        var config = Config(new MatrixCell("OV", "AR", true));
+        var config = Config(TestScenes.Cell("OV", "AR", true));
         var pairs = Run(config, out var scene,
             TestScenes.Model("ov", "OV", (1000, 2000, 3000), [new("p", "OST_PipeCurves", TestScenes.Box(Vector3.Zero, new Vector3(10)))]),
             TestScenes.Model("ar", "AR", (1005, 2005, 3005), [new("w", "OST_Walls", TestScenes.Box(Vector3.Zero, new Vector3(10)))]));

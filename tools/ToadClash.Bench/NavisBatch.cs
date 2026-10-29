@@ -97,8 +97,8 @@ public static class NavisBatch
             Add(model, right, RightSide);
         }
 
-        var configuration = new ClashConfiguration(
-            [AllOf(LeftSide), AllOf(RightSide)], [new MatrixCell(LeftSide, RightSide, true, toleranceMm)], [], IgnoreConnectedMep: false);
+        var configuration = ConfigurationDefaults.FromDisciplines(
+            [AllOf(LeftSide), AllOf(RightSide)], [new DisciplineCell(LeftSide, RightSide, true, toleranceMm)], [], ignoreConnectedMep: false);
         var rules = Rules(clashTest);
         var ours = new Dictionary<ComparisonPair, ClashHit>();
         var ruleIgnored = new HashSet<ComparisonPair>();
@@ -227,7 +227,7 @@ public static class NavisBatch
         return 0;
     }
 
-    private static SelectionSet AllOf(string side) => new(Guid.NewGuid(), side, side, [new ConditionGroup([])]);
+    private static DisciplineSet AllOf(string side) => new(Guid.NewGuid(), side, side, [new ConditionGroup([])]);
 
     private static ElementRef Original(ElementRef side) => side with { ModelKey = side.ModelKey[..side.ModelKey.LastIndexOf(SideSeparator)] };
 

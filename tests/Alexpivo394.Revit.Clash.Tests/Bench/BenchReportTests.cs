@@ -32,7 +32,7 @@ public sealed class BenchReportTests
         try
         {
             File.WriteAllText(Path.Combine(directory, "config.json"), ConfigurationJson.Serialize(
-                new ClashConfiguration([TestScenes.CategorySet("OV", "OST_PipeCurves")], [new MatrixCell("OV", "OV", true)], [])));
+                TestScenes.Config([TestScenes.CategorySet("OV", "OST_PipeCurves")], [TestScenes.Cell("OV", "OV", true)], [])));
             var model = new ModelGeometry(new ModelHeader(key, "", 2022, DateTimeOffset.UtcNow, true, "3D", 0, 0, 0), [], []);
             using (var stream = File.Create(Path.Combine(directory, "arbitrary.tcg"))) ModelGeometryFile.Write(stream, model);
             using (var stream = File.Create(Path.Combine(directory, "arbitrary.tcp")))
@@ -70,9 +70,9 @@ public sealed class BenchReportTests
         Directory.CreateDirectory(directory);
         try
         {
-            File.WriteAllText(Path.Combine(directory, "config.json"), ConfigurationJson.Serialize(new ClashConfiguration(
+            File.WriteAllText(Path.Combine(directory, "config.json"), ConfigurationJson.Serialize(TestScenes.Config(
                 [TestScenes.CategorySet("OV", "OST_PipeCurves"), TestScenes.CategorySet("AR", "OST_Walls")],
-                [new MatrixCell("OV", "AR", true)], [])));
+                [TestScenes.Cell("OV", "AR", true)], [])));
             if (writeRootMapping)
                 File.WriteAllText(Path.Combine(directory, "model-disciplines.json"), """{"pipeModel":"OV","wallModel":"AR"}""");
             WriteSnapshot("pipe.snapshot", "pipeModel", "OV", "pipe", "OST_PipeCurves", 0);
@@ -99,9 +99,9 @@ public sealed class BenchReportTests
         Directory.CreateDirectory(directory);
         try
         {
-            var configuration = new ClashConfiguration(
+            var configuration = TestScenes.Config(
                 [TestScenes.CategorySet("OV", "OST_PipeCurves"), TestScenes.CategorySet("AR", "OST_Walls")],
-                [new MatrixCell("OV", "AR", true)], []);
+                [TestScenes.Cell("OV", "AR", true)], []);
             File.WriteAllText(Path.Combine(directory, "config.json"), ConfigurationJson.Serialize(configuration));
             File.WriteAllText(Path.Combine(directory, "model-disciplines.json"), """{"pipeModel":"OV","wallModel":"AR","zPipeModel":"OV"}""");
             WriteModel("arbitrary", "pipeModel", "OV", "OST_PipeCurves", 0);

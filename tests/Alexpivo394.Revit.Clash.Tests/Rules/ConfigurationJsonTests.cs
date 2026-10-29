@@ -10,17 +10,17 @@ public sealed class ConfigurationJsonTests
     {
         var a = Guid.NewGuid();
         var b = Guid.NewGuid();
-        var config = new ClashConfiguration(
+        var config = ConfigurationDefaults.FromDisciplines(
             [
-                new SelectionSet(a, "OV", "Pipes", [
+                new DisciplineSet(a, "OV", "Pipes", [
                     new ConditionGroup([
                         new Condition(new PropertyRef(PropertyKind.Category), ConditionOperator.Equals, "OST_PipeCurves"),
                         new Condition(new PropertyRef(PropertyKind.Parameter, "Diameter", Guid.NewGuid()), ConditionOperator.Greater, "40,5")])]),
-                new SelectionSet(b, "AR", "Walls", [new ConditionGroup([])])
+                new DisciplineSet(b, "AR", "Walls", [new ConditionGroup([])])
             ],
-            [new MatrixCell("OV", "AR", true, 25)],
+            [new DisciplineCell("OV", "AR", true, 25)],
             [new SetPairExclusion(a, b)],
-            IgnoreConnectedMep: false);
+            ignoreConnectedMep: false);
 
         var json = ConfigurationJson.Serialize(config);
         var restored = ConfigurationJson.Deserialize(json);

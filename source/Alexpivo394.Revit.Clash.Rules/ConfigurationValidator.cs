@@ -12,23 +12,48 @@ public static class ConfigurationValidator
 
     private static readonly StringComparer Text = StringComparer.OrdinalIgnoreCase;
 
-    /// <param name="disciplines">Разделы моделей части: наборы и клетки матрицы других разделов — ошибка.</param>
-    public static IReadOnlyList<string> Problems(ClashConfiguration config, IReadOnlyCollection<string> disciplines)
+    /// <param name="disciplines">Разделы моделей части: источник группы из другого раздела — ошибка.</param>
+    /// <param name="modelKeys">Ключи моделей части: источник группы из модели не этой части — ошибка.</param>
+    public static IReadOnlyList<string> Problems(ClashConfiguration config, IReadOnlyCollection<string> disciplines, IReadOnlyCollection<string> modelKeys)
     {
         if (config is null) throw new ArgumentNullException(nameof(config));
         if (disciplines is null) throw new ArgumentNullException(nameof(disciplines));
+        if (modelKeys is null) throw new ArgumentNullException(nameof(modelKeys));
 
         var known = new HashSet<string>(disciplines, Text);
+        var models = new HashSet<string>(modelKeys, StringComparer.Ordinal);
         var problems = new List<string>();
+        var groups = config.Groups.ToDictionary(g => g.Id);
+
+        foreach (var group in config.Groups)
+        {
+            var label = string.IsNullOrWhiteSpace(group.Name) ? "Группа без имени" : $"Группа «{group.Name.Trim()}»";
+            if (string.IsNullOrWhiteSpace(group.Name)) problems.Add($"{label}: укажите имя");
+            if (group.Source.IsEmpty) problems.Add($"{label}: не задан источник — разделы или модели, из которых берутся элементы");
+            foreach (var discipline in group.Source.Disciplines.Where(d => !known.Contains(d)))
+                problems.Add($"{label}: раздел «{discipline}» не встречается в моделях части");
+            if (group.Source.ModelKeys.Any(k => !models.Contains(k)))
+                problems.Add($"{label}: модель источника не входит в часть — выберите источник заново");
+        }
+
+        foreach (var duplicate in config.Groups.Where(g => !string.IsNullOrWhiteSpace(g.Name))
+                     .GroupBy(g => g.Name.Trim().ToUpperInvariant()).Where(g => g.Count() > 1))
+            problems.Add($"Две группы с именем «{duplicate.First().Name.Trim()}»");
 
         foreach (var set in config.Sets)
         {
-            var label = string.IsNullOrWhiteSpace(set.Name) ? $"Набор без имени в разделе «{set.Discipline}»" : $"Набор «{set.Name}» ({set.Discipline})";
+            var groupName = groups.TryGetValue(set.GroupId, out var owner) ? owner.Name.Trim() : null;
+            var label = string.IsNullOrWhiteSpace(set.Name) ? $"Набор без имени в группе «{groupName}»" : $"Набор «{set.Name}» ({groupName})";
+            if (groupName is null)
+            {
+                problems.Add($"Набор «{set.Name}»: его группа удалена");
+                continue;
+            }
+
             if (string.IsNullOrWhiteSpace(set.Name)) problems.Add($"{label}: укажите имя");
-            if (!known.Contains(set.Discipline)) problems.Add($"{label}: раздел «{set.Discipline}» не встречается в моделях части");
             if (set.AnyOf.Count == 0 || set.AnyOf.Any(g => g.All.Count == 0))
             {
-                problems.Add($"{label}: нет условий — набор отобрал бы все элементы раздела или ни одного");
+                problems.Add($"{label}: нет условий — набор отобрал бы все элементы группы или ни одного");
                 continue;
             }
 
@@ -36,23 +61,27 @@ public static class ConfigurationValidator
                 if (ConditionProblem(condition) is { } problem) problems.Add($"{label}: {problem}");
         }
 
-        foreach (var duplicate in config.Sets.Where(s => !string.IsNullOrWhiteSpace(s.Name))
-                     .GroupBy(s => (Discipline: s.Discipline.ToUpperInvariant(), Name: s.Name.Trim().ToUpperInvariant()))
+        foreach (var duplicate in config.Sets.Where(s => !string.IsNullOrWhiteSpace(s.Name) && groups.ContainsKey(s.GroupId))
+                     .GroupBy(s => (s.GroupId, Name: s.Name.Trim().ToUpperInvariant()))
                      .Where(g => g.Count() > 1))
-            problems.Add($"Два набора с именем «{duplicate.Last().Name.Trim()}» в разделе «{duplicate.First().Discipline}»");
+            problems.Add($"Два набора с именем «{duplicate.Last().Name.Trim()}» в группе «{groups[duplicate.Key.GroupId].Name.Trim()}»");
 
-        var cells = new HashSet<(string, string)>();
+        var cells = new HashSet<(Guid, Guid)>();
         foreach (var cell in config.Matrix)
         {
-            var pair = $"«{cell.DisciplineA}» × «{cell.DisciplineB}»";
-            foreach (var discipline in new[] { cell.DisciplineA, cell.DisciplineB }.Distinct(Text).Where(d => !known.Contains(d)))
-                problems.Add($"Матрица {pair}: раздел «{discipline}» не встречается в моделях части");
+            var nameA = groups.TryGetValue(cell.GroupA, out var a) ? a.Name.Trim() : null;
+            var nameB = groups.TryGetValue(cell.GroupB, out var b) ? b.Name.Trim() : null;
+            if (nameA is null || nameB is null)
+            {
+                problems.Add("Клетка матрицы ссылается на удалённую группу");
+                continue;
+            }
+
+            var pair = $"«{nameA}» × «{nameB}»";
             if (cell.ToleranceMm < MinToleranceMm || cell.ToleranceMm > MaxToleranceMm)
                 problems.Add($"Матрица {pair}: допуск — от {MinToleranceMm.ToString(CultureInfo.GetCultureInfo("ru-RU"))} до {MaxToleranceMm} мм");
-
-            var a = cell.DisciplineA.ToUpperInvariant();
-            var b = cell.DisciplineB.ToUpperInvariant();
-            if (!cells.Add(string.CompareOrdinal(a, b) <= 0 ? (a, b) : (b, a))) problems.Add($"Матрица {pair}: клетка задана дважды");
+            if (!cells.Add(cell.GroupA.CompareTo(cell.GroupB) <= 0 ? (cell.GroupA, cell.GroupB) : (cell.GroupB, cell.GroupA)))
+                problems.Add($"Матрица {pair}: клетка задана дважды");
         }
 
         var ids = config.Sets.Select(s => s.Id).ToHashSet();

@@ -15,8 +15,8 @@ public sealed class NavisCompareTests
         var mesh = TestScenes.Box(Vector3.Zero, new Vector3(1000));
         var left = TestScenes.Model("left", "OV", (0, 0, 0), [new("a", "OST_PipeCurves", mesh)]);
         var right = TestScenes.Model("right", "AR", (0, 0, 0), [new("b", "OST_Walls", mesh)]);
-        var configuration = new ClashConfiguration([TestScenes.CategorySet("OV", "OST_PipeCurves"), TestScenes.CategorySet("AR", "OST_Walls")],
-            [new MatrixCell("OV", "AR", true)], []);
+        var configuration = TestScenes.Config([TestScenes.CategorySet("OV", "OST_PipeCurves"), TestScenes.CategorySet("AR", "OST_Walls")],
+            [TestScenes.Cell("OV", "AR", true)], []);
         var leftId = left.Geometry.Elements[0].Info.ElementId;
         var rightId = right.Geometry.Elements[0].Info.ElementId;
         XElement Result(string status, long other) => new("clashresult", new XAttribute("name", status + other), new XAttribute("status", status),
@@ -108,8 +108,8 @@ public sealed class NavisCompareTests
         var left = WithIds(TestScenes.Model("left", "OV", (0, 0, 0), leftItems), 10, 11);
         var right = WithIds(TestScenes.Model("right", "AR", (0, 0, 0),
             [new("b", "OST_Walls", TestScenes.Box(new Vector3(rightOffset, 0, 0), new Vector3(rightOffset + 1000, 1000, 1000)))]), rightId);
-        var configuration = new ClashConfiguration([TestScenes.CategorySet("OV", "OST_PipeCurves"), TestScenes.CategorySet("AR", "OST_Walls")],
-            [new MatrixCell("OV", "AR", true)], []);
+        var configuration = TestScenes.Config([TestScenes.CategorySet("OV", "OST_PipeCurves"), TestScenes.CategorySet("AR", "OST_Walls")],
+            [TestScenes.Cell("OV", "AR", true)], []);
         return (left, right, configuration);
     }
 

@@ -21,7 +21,7 @@ public sealed class PairFilterTests
     }
 
     private static ClashConfiguration Config(params SetPairExclusion[] exclusions) =>
-        new([PipeSet, WallSet], [new MatrixCell("OV", "AR", true, 15)], exclusions);
+        TestScenes.Config([PipeSet, WallSet], [TestScenes.Cell("OV", "AR", true, 15)], exclusions);
 
     private static ModelInput[] PipeAndWall() =>
     [
@@ -32,7 +32,7 @@ public sealed class PairFilterTests
     [Test]
     public void DisabledCell_NoCandidates()
     {
-        var config = Config() with { Matrix = [new MatrixCell("OV", "AR", false)] };
+        var config = Config() with { Matrix = [TestScenes.Cell("OV", "AR", false)] };
         var (scene, filter) = Setup(config, PipeAndWall());
 
         BroadPhase.Find(scene, config, filter, 2).ShouldBeEmpty();
@@ -72,7 +72,7 @@ public sealed class PairFilterTests
     [Test]
     public void ConnectedMep_Skipped()
     {
-        var config = Config() with { Matrix = [new MatrixCell("OV", "OV", true)] };
+        var config = Config() with { Matrix = [TestScenes.Cell("OV", "OV", true)] };
         var model = TestScenes.Model("ov", "OV", Zero, [
             new("a", "OST_PipeCurves", Cube(), ["b"]),
             new("b", "OST_PipeCurves", Cube())]);
@@ -89,7 +89,7 @@ public sealed class PairFilterTests
     [Test]
     public void NestedComponents_OfSameRoot_Skipped()
     {
-        var config = Config() with { Matrix = [new MatrixCell("OV", "OV", true)] };
+        var config = Config() with { Matrix = [TestScenes.Cell("OV", "OV", true)] };
         var model = TestScenes.Model("ov", "OV", Zero, [
             new("parent", "OST_PipeCurves", Cube()),
             new("child", "OST_PipeCurves", Cube(), Root: "parent"),
@@ -102,7 +102,7 @@ public sealed class PairFilterTests
     [Test]
     public void NestedComponents_DifferentRootsOrModels_Checked()
     {
-        var config = Config() with { Matrix = [new MatrixCell("OV", "OV", true)] };
+        var config = Config() with { Matrix = [TestScenes.Cell("OV", "OV", true)] };
         var (scene, filter) = Setup(config,
             TestScenes.Model("ov", "OV", Zero, [
                 new("parent", "OST_PipeCurves", Cube()),

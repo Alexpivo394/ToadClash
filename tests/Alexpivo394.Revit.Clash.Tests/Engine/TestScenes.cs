@@ -92,8 +92,19 @@ public static class TestScenes
             new ModelParameters(new Dictionary<string, IReadOnlyList<ParameterValue>>()));
     }
 
-    /// <summary>Набор раздела, в который входят элементы заданной категории.</summary>
+    /// <summary>Набор группы раздела, в который входят элементы заданной категории.</summary>
     public static SelectionSet CategorySet(string discipline, string category) =>
-        new(Guid.NewGuid(), discipline, category, [
+        new(Guid.NewGuid(), ConfigurationDefaults.DisciplineGroupId(discipline), category, [
             new ConditionGroup([new Condition(new PropertyRef(PropertyKind.Category), ConditionOperator.Equals, category)])]);
+
+    /// <summary>Клетка матрицы для групп двух разделов.</summary>
+    public static MatrixCell Cell(string a, string b, bool enabled, double toleranceMm = 20) =>
+        new(ConfigurationDefaults.DisciplineGroupId(a), ConfigurationDefaults.DisciplineGroupId(b), enabled, toleranceMm);
+
+    /// <summary>Конфигурация с группами разделов, которые встречаются в тестах.</summary>
+    public static ClashConfiguration Config(IReadOnlyList<SelectionSet> sets, IReadOnlyList<MatrixCell> matrix, IReadOnlyList<SetPairExclusion> exclusions,
+        bool ignoreConnectedMep = true) =>
+        new(Disciplines.Select(ConfigurationDefaults.DisciplineGroup).ToList(), sets, matrix, exclusions, ignoreConnectedMep);
+
+    private static readonly string[] Disciplines = ["OV", "AR", "KR", "VK", "EOM", "АР", "ОВ", "ВК", "КР"];
 }

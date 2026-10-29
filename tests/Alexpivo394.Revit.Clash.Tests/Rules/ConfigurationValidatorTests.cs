@@ -10,12 +10,12 @@ public sealed class ConfigurationValidatorTests
     private static Condition Cond(PropertyKind kind, ConditionOperator op, string? value, string? parameter = null, Guid? guid = null) =>
         new(new PropertyRef(kind, parameter, guid), op, value);
 
-    private static SelectionSet Set(string discipline, string name, params ConditionGroup[] groups) =>
+    private static DisciplineSet Set(string discipline, string name, params ConditionGroup[] groups) =>
         new(Guid.NewGuid(), discipline, name, groups.Length > 0 ? groups : [new ConditionGroup([Cond(PropertyKind.Category, ConditionOperator.IsNotEmpty, null)])]);
 
-    private static IReadOnlyList<string> Problems(IReadOnlyList<SelectionSet> sets, IReadOnlyList<MatrixCell>? matrix = null,
+    private static IReadOnlyList<string> Problems(IReadOnlyList<DisciplineSet> sets, IReadOnlyList<DisciplineCell>? matrix = null,
         IReadOnlyList<SetPairExclusion>? exclusions = null) =>
-        ConfigurationValidator.Problems(new ClashConfiguration(sets, matrix ?? [], exclusions ?? []), Disciplines);
+        ConfigurationValidator.Problems(ConfigurationDefaults.FromDisciplines(sets, matrix ?? [], exclusions ?? []), Disciplines, []);
 
     [Test]
     public void Problems_ValidConfiguration_Empty()
@@ -25,7 +25,7 @@ public sealed class ConfigurationValidatorTests
             new ConditionGroup([Cond(PropertyKind.Parameter, ConditionOperator.Greater, "40,5", "Диаметр")]),
             new ConditionGroup([Cond(PropertyKind.Category, ConditionOperator.Equals, "OST_DuctCurves")]));
 
-        Problems([walls, ducts], [new MatrixCell("АР", "ОВ", true), new MatrixCell("ОВ", "ОВ", false, 0.05)], [new SetPairExclusion(walls.Id, ducts.Id)])
+        Problems([walls, ducts], [new DisciplineCell("АР", "ОВ", true), new DisciplineCell("ОВ", "ОВ", false, 0.05)], [new SetPairExclusion(walls.Id, ducts.Id)])
             .ShouldBeEmpty();
     }
 
@@ -44,7 +44,7 @@ public sealed class ConfigurationValidatorTests
     [Test]
     public void Problems_SetWithoutConditions()
     {
-        Problems([new SelectionSet(Guid.NewGuid(), "АР", "Пусто", [])]).ShouldHaveSingleItem().ShouldContain("нет условий");
+        Problems([new DisciplineSet(Guid.NewGuid(), "АР", "Пусто", [])]).ShouldHaveSingleItem().ShouldContain("нет условий");
         Problems([Set("АР", "Пустая группа", new ConditionGroup([]))]).ShouldHaveSingleItem().ShouldContain("нет условий");
     }
 
@@ -65,18 +65,18 @@ public sealed class ConfigurationValidatorTests
 
     [Test]
     public void Problems_UnknownDisciplineInMatrix() =>
-        Problems([Set("АР", "Стены")], [new MatrixCell("АР", "ЭОМ", true)]).ShouldHaveSingleItem().ShouldContain("«ЭОМ»");
+        Problems([Set("АР", "Стены")], [new DisciplineCell("АР", "ЭОМ", true)]).ShouldHaveSingleItem().ShouldContain("«ЭОМ»");
 
     [Test]
     public void Problems_ToleranceBelowMinimum()
     {
-        Problems([Set("АР", "Стены")], [new MatrixCell("АР", "ОВ", true, 0.01)]).ShouldHaveSingleItem().ShouldContain("0,05");
-        Problems([Set("АР", "Стены")], [new MatrixCell("АР", "ОВ", true, 5000)]).ShouldHaveSingleItem().ShouldContain("1000");
+        Problems([Set("АР", "Стены")], [new DisciplineCell("АР", "ОВ", true, 0.01)]).ShouldHaveSingleItem().ShouldContain("0,05");
+        Problems([Set("АР", "Стены")], [new DisciplineCell("АР", "ОВ", true, 5000)]).ShouldHaveSingleItem().ShouldContain("1000");
     }
 
     [Test]
     public void Problems_DuplicateCell() =>
-        Problems([Set("АР", "Стены")], [new MatrixCell("АР", "ОВ", true), new MatrixCell("ов", "ар", false)]).ShouldHaveSingleItem().ShouldContain("дважды");
+        Problems([Set("АР", "Стены")], [new DisciplineCell("АР", "ОВ", true), new DisciplineCell("ов", "ар", false)]).ShouldHaveSingleItem().ShouldContain("дважды");
 
     [Test]
     public void Problems_ExclusionOfMissingSet()

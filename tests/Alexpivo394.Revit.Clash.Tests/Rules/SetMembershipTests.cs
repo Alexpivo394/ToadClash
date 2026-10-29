@@ -20,12 +20,12 @@ public sealed class SetMembershipTests
     private static Condition Cat(string category) =>
         new(new PropertyRef(PropertyKind.Category), ConditionOperator.Equals, category);
 
-    private static ClashConfiguration Config(params SelectionSet[] sets) => new(sets, [], []);
+    private static ClashConfiguration Config(params DisciplineSet[] sets) => ConfigurationDefaults.FromDisciplines(sets, [], []);
 
     [Test]
     public void Set_AnyOfGroups_Or()
     {
-        var set = new SelectionSet(Guid.NewGuid(), "OV", "Pipes or ducts", [
+        var set = new DisciplineSet(Guid.NewGuid(), "OV", "Pipes or ducts", [
             new ConditionGroup([Cat("OST_PipeCurves")]),
             new ConditionGroup([Cat("OST_DuctCurves")])]);
         var model = Model("m1", "OV", Element("a", "OST_PipeCurves"), Element("b", "OST_DuctCurves"), Element("c", "OST_Walls"));
@@ -40,7 +40,7 @@ public sealed class SetMembershipTests
     [Test]
     public void Group_AllConditions_And()
     {
-        var set = new SelectionSet(Guid.NewGuid(), "OV", "S", [
+        var set = new DisciplineSet(Guid.NewGuid(), "OV", "S", [
             new ConditionGroup([Cat("OST_PipeCurves"),
                 new Condition(new PropertyRef(PropertyKind.Level), ConditionOperator.Equals, "L1")])]);
         var model = Model("m1", "OV", Element("a", "OST_PipeCurves"));
@@ -63,8 +63,8 @@ public sealed class SetMembershipTests
     [Test]
     public void Membership_OnlySetsOfOwnDiscipline()
     {
-        var ar = new SelectionSet(Guid.NewGuid(), "AR", "Walls", [new ConditionGroup([Cat("OST_Walls")])]);
-        var ov = new SelectionSet(Guid.NewGuid(), "ov", "Walls too", [new ConditionGroup([Cat("OST_Walls")])]);
+        var ar = new DisciplineSet(Guid.NewGuid(), "AR", "Walls", [new ConditionGroup([Cat("OST_Walls")])]);
+        var ov = new DisciplineSet(Guid.NewGuid(), "ov", "Walls too", [new ConditionGroup([Cat("OST_Walls")])]);
         var model = Model("m1", "OV", Element("a", "OST_Walls"));
 
         SetMembership.Evaluate(Config(ar, ov), [model]).SetsOf("m1", "a").ShouldBe([ov.Id]);
@@ -73,11 +73,11 @@ public sealed class SetMembershipTests
     [Test]
     public void CellFor_IsSymmetric()
     {
-        var cell = new MatrixCell("AR", "OV", true, 15);
-        var config = new ClashConfiguration([], [cell], []);
+        var cell = new DisciplineCell("AR", "OV", true, 15);
+        var config = ConfigurationDefaults.FromDisciplines([], [cell], []);
 
-        config.CellFor("OV", "AR").ShouldBe(cell);
-        config.CellFor("ar", "ov").ShouldBe(cell);
-        config.CellFor("AR", "EOM").ShouldBeNull();
+        config.CellFor(ConfigurationDefaults.DisciplineGroupId("OV"), ConfigurationDefaults.DisciplineGroupId("AR")).ShouldBe(config.Matrix[0]);
+        config.CellFor(ConfigurationDefaults.DisciplineGroupId("ar"), ConfigurationDefaults.DisciplineGroupId("ov")).ShouldBe(config.Matrix[0]);
+        config.CellFor(ConfigurationDefaults.DisciplineGroupId("AR"), ConfigurationDefaults.DisciplineGroupId("EOM")).ShouldBeNull();
     }
 }

@@ -40,7 +40,7 @@ public sealed class ClashScene
 
     private ClashScene(
         List<SceneElement> elements,
-        List<string> disciplines,
+        List<Guid> disciplines,
         HashSet<(int, int)> connected,
         double originX,
         double originY,
@@ -58,7 +58,7 @@ public sealed class ClashScene
 
     internal IReadOnlyList<SceneElement> Elements { get; }
 
-    internal IReadOnlyList<string> Disciplines { get; }
+    internal IReadOnlyList<Guid> Disciplines { get; }
 
     /// <summary>Начало системы координат сцены, мм.</summary>
     public double OriginX { get; }
@@ -87,8 +87,8 @@ public sealed class ClashScene
         var oz = header0?.OriginZ ?? 0;
 
         var elements = new List<SceneElement>();
-        var disciplines = new List<string>();
-        var disciplineIndex = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var disciplines = new List<Guid>();
+        var disciplineIndex = new Dictionary<Guid, int>();
         var connected = new HashSet<(int, int)>();
         long triangles = 0;
 
@@ -96,13 +96,6 @@ public sealed class ClashScene
         {
             var model = models[m];
             var header = model.Geometry.Header;
-            if (!disciplineIndex.TryGetValue(model.Discipline, out var discipline))
-            {
-                discipline = disciplines.Count;
-                disciplines.Add(model.Discipline);
-                disciplineIndex[model.Discipline] = discipline;
-            }
-
             var same = header.OriginX == ox && header.OriginY == oy && header.OriginZ == oz;
             var byUniqueId = new Dictionary<string, int>(StringComparer.Ordinal);
             var products = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -113,6 +106,13 @@ public sealed class ClashScene
                 var info = element.Info;
                 var sets = membership.SetsOf(header.ModelKey, info.UniqueId);
                 if (sets.Count == 0) continue;
+                var group = membership.GroupsOf(header.ModelKey, info.UniqueId)[0];
+                if (!disciplineIndex.TryGetValue(group, out var discipline))
+                {
+                    discipline = disciplines.Count;
+                    disciplines.Add(group);
+                    disciplineIndex[group] = discipline;
+                }
 
                 var mesh = element.Mesh;
                 if (!HasNonDegenerateTriangle(mesh)) continue;

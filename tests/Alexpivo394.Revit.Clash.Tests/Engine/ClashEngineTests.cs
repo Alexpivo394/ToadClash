@@ -13,7 +13,7 @@ public sealed class ClashEngineTests
     private static readonly SelectionSet WallSet = TestScenes.CategorySet("AR", "OST_Walls");
 
     private static ClashConfiguration Config(double tolerance = 20) =>
-        new([PipeSet, WallSet], [new MatrixCell("OV", "AR", true, tolerance)], []);
+        TestScenes.Config([PipeSet, WallSet], [TestScenes.Cell("OV", "AR", true, tolerance)], []);
 
     private static ClashRunResult Run(ClashConfiguration config, params ModelInput[] models) =>
         new ClashEngine(new EngineOptions(4)).Run(models, config, CancellationToken.None);
