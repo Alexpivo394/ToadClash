@@ -39,6 +39,9 @@ public static class ConfigurationJson
         return ConfigurationDefaults.FromDisciplines(legacy.Sets, legacy.Matrix, legacy.Exclusions, legacy.IgnoreConnectedMep);
     }
 
+    /// <summary>JSON части конфигурации — для сравнения записей со списками по содержимому.</summary>
+    internal static string Canonical<T>(T item) => JsonSerializer.Serialize(item, Options);
+
     private static bool HasProperty(JsonElement root, string name)
     {
         foreach (var property in root.EnumerateObject())
