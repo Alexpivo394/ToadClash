@@ -21,13 +21,15 @@ public sealed record ClashHit(ElementRef A, ElementRef B, double PointX, double 
 /// <param name="BroadPhase">Время широкой фазы.</param>
 /// <param name="NarrowPhase">Время точной фазы.</param>
 /// <param name="PeakManagedBytes">Наибольший замер управляемой кучи в контрольных точках, байт.</param>
+/// <param name="ReusedPairs">Пары-кандидаты, взятые из прошлого прогона без точной фазы.</param>
 public sealed record ClashRunStats(
     int Elements,
     long Triangles,
     long CandidatePairs,
     TimeSpan BroadPhase,
     TimeSpan NarrowPhase,
-    long PeakManagedBytes);
+    long PeakManagedBytes,
+    long ReusedPairs = 0);
 
 /// <summary>Результат прогона: коллизии, отсортированные по (A, B), и статистика.</summary>
 public sealed record ClashRunResult(IReadOnlyList<ClashHit> Hits, ClashRunStats Stats);

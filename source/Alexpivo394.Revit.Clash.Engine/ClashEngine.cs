@@ -34,8 +34,9 @@ public sealed class ClashEngine(EngineOptions options)
     private readonly EngineOptions _options = options ?? throw new ArgumentNullException(nameof(options));
 
     /// <summary>Ищет коллизии между моделями части по конфигурации.</summary>
+    /// <param name="previous">Прошлый прогон той же конфигурации: пары с неизменными элементами берутся из него без точной фазы.</param>
     /// <exception cref="OperationCanceledException">Прогон отменён.</exception>
-    public ClashRunResult Run(IReadOnlyList<ModelInput> models, ClashConfiguration config, CancellationToken ct)
+    public ClashRunResult Run(IReadOnlyList<ModelInput> models, ClashConfiguration config, CancellationToken ct, IncrementalBase? previous = null)
     {
         if (models is null) throw new ArgumentNullException(nameof(models));
         if (config is null) throw new ArgumentNullException(nameof(config));
@@ -44,7 +45,8 @@ public sealed class ClashEngine(EngineOptions options)
         var threads = _options.MaxDegreeOfParallelism > 0 ? _options.MaxDegreeOfParallelism : Environment.ProcessorCount;
         var peak = new PeakMemory();
 
-        var scene = ClashScene.Build(models, SetMembership.Evaluate(config, models));
+        var membership = SetMembership.Evaluate(config, models);
+        var scene = ClashScene.Build(models, membership);
         peak.Sample();
         ct.ThrowIfCancellationRequested();
 
@@ -56,6 +58,9 @@ public sealed class ClashEngine(EngineOptions options)
 
         clock.Restart();
         var hits = new List<ClashHit>();
+        var candidates = pairs.Count;
+        var reused = 0L;
+        if (previous is not null) pairs = Reuse(scene, models, membership, previous, pairs, hits, out reused);
         if (pairs.Count > 0)
         {
             var narrow = new NarrowPhase(scene);
@@ -91,8 +96,110 @@ public sealed class ClashEngine(EngineOptions options)
         var narrowPhase = clock.Elapsed;
         peak.Sample();
 
-        var stats = new ClashRunStats(scene.ElementCount, scene.TriangleCount, pairs.Count, broadPhase, narrowPhase, peak.Value);
+        var stats = new ClashRunStats(scene.ElementCount, scene.TriangleCount, candidates, broadPhase, narrowPhase, peak.Value, reused);
         return new ClashRunResult(hits, stats);
+    }
+
+    /// <summary>
+    ///     Точная проверка заданных пар по правилам конфигурации — наборы, клетки, исключения, соединения MEP, одно изделие,
+    ///     допуск — без широкой фазы. Пара, элемента которой нет в моделях или в наборах, коллизией не будет.
+    /// </summary>
+    /// <returns>Коллизии из заданных пар, элементы в каноническом порядке.</returns>
+    /// <exception cref="OperationCanceledException">Проверка отменена.</exception>
+    public IReadOnlyList<ClashHit> Recheck(IReadOnlyList<ModelInput> models, ClashConfiguration config, IReadOnlyList<(ElementRef A, ElementRef B)> pairs,
+        CancellationToken ct)
+    {
+        if (models is null) throw new ArgumentNullException(nameof(models));
+        if (config is null) throw new ArgumentNullException(nameof(config));
+        if (pairs is null) throw new ArgumentNullException(nameof(pairs));
+
+        var scene = ClashScene.Build(models, SetMembership.Evaluate(config, models));
+        var filter = new PairFilter(scene, config);
+        var index = new Dictionary<ElementRef, int>(scene.ElementCount);
+        for (var i = 0; i < scene.Elements.Count; i++) index[scene.Elements[i].Ref] = i;
+
+        var candidates = new List<CandidatePair>();
+        var cells = new List<PairCell>(4);
+        foreach (var (refA, refB) in pairs.Distinct())
+        {
+            if (!index.TryGetValue(refA, out var x) || !index.TryGetValue(refB, out var y) || x == y) continue;
+            var (a, b) = x < y ? (x, y) : (y, x);
+            if (!scene.Elements[a].Bounds.Overlaps(scene.Elements[b].Bounds)) continue;
+            cells.Clear();
+            var tolerance = float.MaxValue;
+            foreach (var ga in scene.Elements[a].Groups)
+            foreach (var gb in scene.Elements[b].Groups)
+            {
+                var (first, second) = ga <= gb ? (ga, gb) : (gb, ga);
+                if (cells.Exists(c => c.GroupA == first && c.GroupB == second)) continue;
+                if (!filter.Passes(a, b, ga, gb, out var cellTolerance)) continue;
+                cells.Add(new PairCell(first, second, cellTolerance));
+                tolerance = Math.Min(tolerance, cellTolerance);
+            }
+
+            if (cells.Count > 0) candidates.Add(new CandidatePair(a, b, tolerance, [.. cells]));
+        }
+
+        var worker = new Worker(new NarrowPhase(scene));
+        foreach (var pair in candidates)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (worker.Check(pair, out var hit)) worker.Hits.Add(hit);
+        }
+
+        return worker.Hits;
+    }
+
+    // Пары, у обоих элементов которых состояние не изменилось, получают коллизию прошлого прогона или ничего; остальные идут в точную фазу.
+    private static List<CandidatePair> Reuse(ClashScene scene, IReadOnlyList<ModelInput> models, SetMembership membership, IncrementalBase previous,
+        List<CandidatePair> pairs, List<ClashHit> hits, out long reused)
+    {
+        var fingerprints = new Dictionary<ElementRef, (ulong Fingerprint, ElementInfo Info)>(scene.ElementCount);
+        foreach (var model in models)
+        foreach (var element in model.Geometry.Elements)
+            fingerprints[new ElementRef(model.Geometry.Header.ModelKey, element.Info.UniqueId)] = (element.Fingerprint, element.Info);
+
+        var unchanged = new bool[scene.Elements.Count];
+        for (var i = 0; i < unchanged.Length; i++)
+        {
+            var element = scene.Elements[i].Ref;
+            var (fingerprint, info) = fingerprints[element];
+            unchanged[i] = previous.TryGetState(element, out var state) &&
+                           state == IncrementalBase.StateOf(fingerprint, membership.SetsOf(element.ModelKey, element.UniqueId), info);
+        }
+
+        reused = 0;
+        var rest = new List<CandidatePair>(pairs.Count);
+        foreach (var pair in pairs)
+        {
+            if (!unchanged[pair.A] || !unchanged[pair.B])
+            {
+                rest.Add(pair);
+                continue;
+            }
+
+            reused++;
+            var a = scene.Elements[pair.A].Ref;
+            var b = scene.Elements[pair.B].Ref;
+            var (first, second) = a.CompareTo(b) <= 0 ? (a, b) : (b, a);
+            if (previous.HitOf(first, second) is not { } hit) continue;
+            var checks = ChecksOf(scene.Groups, pair, hit.DepthMm);
+            if (checks.Count > 0) hits.Add(hit with { Checks = checks });
+        }
+
+        return rest;
+    }
+
+    // Проверки, в которых глубина больше допуска своей клетки; клетка с наименьшим допуском проходит всегда.
+    private static IReadOnlyList<CheckRef> ChecksOf(IReadOnlyList<Guid> groups, CandidatePair pair, double depth)
+    {
+        var checks = new List<CheckRef>(pair.Cells.Length);
+        foreach (var cell in pair.Cells)
+        {
+            if (depth > Math.Max(cell.ToleranceMm, MinToleranceMm)) checks.Add(CheckRef.Of(groups[cell.GroupA], groups[cell.GroupB]));
+        }
+
+        return checks;
     }
 
     /// <summary>Общее для потоков состояние точной фазы: ленивые BVH и кеш замкнутости.</summary>
@@ -174,21 +281,8 @@ public sealed class ClashEngine(EngineOptions options)
                 scene.OriginY + ((double)zone.Min.Y + zone.Max.Y) / 2,
                 scene.OriginZ + ((double)zone.Min.Z + zone.Max.Z) / 2,
                 (float)depth,
-                ChecksOf(pair, depth));
+                ChecksOf(scene.Groups, pair, depth));
             return true;
-        }
-
-        // Проверки, в которых глубина больше допуска своей клетки; клетка с наименьшим допуском проходит всегда.
-        private IReadOnlyList<CheckRef> ChecksOf(CandidatePair pair, double depth)
-        {
-            var groups = narrow.Scene.Groups;
-            var checks = new List<CheckRef>(pair.Cells.Length);
-            foreach (var cell in pair.Cells)
-            {
-                if (depth > Math.Max(cell.ToleranceMm, MinToleranceMm)) checks.Add(CheckRef.Of(groups[cell.GroupA], groups[cell.GroupB]));
-            }
-
-            return checks;
         }
 
         // Вершины элемента source в общем габарите, лежащие внутри замкнутого outer; не больше MaxInsideSamples проверок.

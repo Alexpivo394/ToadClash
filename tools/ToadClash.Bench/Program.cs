@@ -14,7 +14,7 @@ if (args.Length == 0 || args[0] is not ("synth" or "run"))
     Console.Error.WriteLine("""
         Использование:
           synth --elements 200000 --models 12 --seed 1 [--profile standard|dense] --out <каталог>
-          run --in <каталог> --threads 8 [--pairs <файл.tsv>]
+          run --in <каталог> --threads 8 [--pairs <файл.tsv>] [--incremental true]
           identity --old <tcg> --new <tcg>
           navis-all --settings <xml> --reports <каталог> --snapshots <каталог> --out <каталог> [--test <имя>]
           navis --report <xml> --left <tcg> --right <tcg> --left-section <раздел> --right-section <раздел> --config <json>
@@ -56,6 +56,6 @@ if (args[0] == "synth")
 }
 
 using var pairs = options.TryGetValue("pairs", out var pairsPath) ? new StreamWriter(pairsPath) : null;
-var report = BenchReport.Run(Required("in"), Number("threads", 0), Console.Error, pairs);
+var report = BenchReport.Run(Required("in"), Number("threads", 0), Console.Error, pairs, options.TryGetValue("incremental", out var repeat) && bool.Parse(repeat));
 Console.WriteLine(report.ToJson());
 return 0;

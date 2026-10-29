@@ -35,7 +35,7 @@ public sealed record BenchReport(
     ///     слепков. Без явной записи допустим ключ раздела или ключ вида «раздел-номер» из синтетики.
     ///     Если задан <paramref name="pairs"/>, туда пишется таблица найденных пар через табуляцию.
     /// </summary>
-    public static BenchReport Run(string directory, int threads, TextWriter diagnostics, TextWriter? pairs = null)
+    public static BenchReport Run(string directory, int threads, TextWriter diagnostics, TextWriter? pairs = null, bool incremental = false)
     {
         var total = Stopwatch.StartNew();
         var config = ConfigurationJson.Deserialize(File.ReadAllText(Path.Combine(directory, "config.json")));
@@ -76,6 +76,7 @@ public sealed record BenchReport(
             diagnostics.WriteLine($"  {group.Key.Item1} x {group.Key.Item2}: {group.Count()}");
 
         if (pairs is not null) WritePairs(pairs, result.Hits, inputs);
+        if (incremental) RepeatIncremental(inputs, config, result, threads, diagnostics);
 
         const long mb = 1024 * 1024;
         return new BenchReport(
@@ -109,6 +110,22 @@ public sealed record BenchReport(
         }
 
         return mapping;
+    }
+
+    // Второй прогон тех же моделей с основой первого: сколько пар взято без точной фазы и сколько она длилась.
+    private static void RepeatIncremental(ModelInput[] inputs, ClashConfiguration config, ClashRunResult first, int threads, TextWriter diagnostics)
+    {
+        var clock = Stopwatch.StartNew();
+        var fingerprints = inputs
+            .SelectMany(input => input.Geometry.Elements.Select(e => (Ref: new ElementRef(input.Geometry.Header.ModelKey, e.Info.UniqueId), e.Fingerprint)))
+            .ToDictionary(x => x.Ref, x => x.Fingerprint);
+        var previous = IncrementalBase.From(inputs.Select(i => i.ToElements()).ToList(), fingerprints, config, first.Hits);
+        var basis = clock.Elapsed;
+        var second = new ClashEngine(new EngineOptions(threads)).Run(inputs, config, CancellationToken.None, previous);
+        diagnostics.WriteLine(
+            $"Повтор с основой: основа {basis.TotalSeconds:0.0} с, широкая {second.Stats.BroadPhase.TotalSeconds:0.0} с, " +
+            $"точная {second.Stats.NarrowPhase.TotalSeconds:0.0} с, взято {second.Stats.ReusedPairs} из {second.Stats.CandidatePairs}, " +
+            $"коллизий {second.Hits.Count} (было {first.Hits.Count})");
     }
 
     private static void WritePairs(TextWriter output, IReadOnlyList<ClashHit> hits, ModelInput[] inputs)

@@ -16,13 +16,29 @@ public static class ElementMatcher
     {
         ArgumentNullException.ThrowIfNull(oldModel);
         ArgumentNullException.ThrowIfNull(newModel);
+        return Compare(oldModel.Header, oldModel.Elements.Select(e => (e.Info, e.Bounds)), newModel.Header,
+            newModel.Elements.Select(e => (e.Info, e.Bounds)), centerToleranceMm);
+    }
+
+    /// <summary>То же по оглавлениям выгрузок, без сеток.</summary>
+    public static IdentityReport Compare(ModelIndex oldModel, ModelIndex newModel, double centerToleranceMm = 50)
+    {
+        ArgumentNullException.ThrowIfNull(oldModel);
+        ArgumentNullException.ThrowIfNull(newModel);
+        return Compare(oldModel.Header, oldModel.Elements.Select(e => (e.Info, e.Bounds)), newModel.Header,
+            newModel.Elements.Select(e => (e.Info, e.Bounds)), centerToleranceMm);
+    }
+
+    private static IdentityReport Compare(ModelHeader oldHeader, IEnumerable<(ElementInfo Info, Aabb Bounds)> oldModel, ModelHeader newHeader,
+        IEnumerable<(ElementInfo Info, Aabb Bounds)> newModel, double centerToleranceMm)
+    {
         if (!double.IsFinite(centerToleranceMm) || centerToleranceMm < 0)
             throw new ArgumentOutOfRangeException(nameof(centerToleranceMm), "Допуск центра должен быть конечным и неотрицательным (мм).");
-        if (!string.Equals(oldModel.Header.ModelKey, newModel.Header.ModelKey, StringComparison.Ordinal))
-            throw new ArgumentException($"ModelKey различаются: '{oldModel.Header.ModelKey}' и '{newModel.Header.ModelKey}'. Сопоставление возможно только внутри одной модели.");
+        if (!string.Equals(oldHeader.ModelKey, newHeader.ModelKey, StringComparison.Ordinal))
+            throw new ArgumentException($"ModelKey различаются: '{oldHeader.ModelKey}' и '{newHeader.ModelKey}'. Сопоставление возможно только внутри одной модели.");
 
-        var oldElements = Index(oldModel);
-        var newElements = Index(newModel);
+        var oldElements = Index(oldHeader, oldModel);
+        var newElements = Index(newHeader, newModel);
         var kept = oldElements.Keys.Count(newElements.ContainsKey);
         var cellSize = Math.Max(1, centerToleranceMm);
         var buckets = new Dictionary<Bucket, List<Entry>>();
@@ -88,13 +104,13 @@ public static class ElementMatcher
     private static bool SimilarSize(double oldSize, double newSize) =>
         oldSize == 0 ? newSize == 0 : Math.Abs(newSize - oldSize) < oldSize * 0.01;
 
-    private static Dictionary<string, Entry> Index(ModelGeometry model)
+    private static Dictionary<string, Entry> Index(ModelHeader header, IEnumerable<(ElementInfo Info, Aabb Bounds)> elements)
     {
-        ValidateCoordinate(model.Header.OriginX);
-        ValidateCoordinate(model.Header.OriginY);
-        ValidateCoordinate(model.Header.OriginZ);
-        var result = new Dictionary<string, Entry>(model.Elements.Count, StringComparer.Ordinal);
-        foreach (var element in model.Elements)
+        ValidateCoordinate(header.OriginX);
+        ValidateCoordinate(header.OriginY);
+        ValidateCoordinate(header.OriginZ);
+        var result = new Dictionary<string, Entry>(StringComparer.Ordinal);
+        foreach (var element in elements)
         {
             var bounds = element.Bounds;
             var width = (double)bounds.Max.X - bounds.Min.X;
@@ -102,9 +118,9 @@ public static class ElementMatcher
             var depth = (double)bounds.Max.Z - bounds.Min.Z;
             if (!double.IsFinite(width) || !double.IsFinite(height) || !double.IsFinite(depth) || width < 0 || height < 0 || depth < 0)
                 throw new ArgumentException($"Некорректные габариты элемента '{element.Info.UniqueId}'.");
-            var centerX = model.Header.OriginX + ((double)bounds.Min.X + bounds.Max.X) / 2;
-            var centerY = model.Header.OriginY + ((double)bounds.Min.Y + bounds.Max.Y) / 2;
-            var centerZ = model.Header.OriginZ + ((double)bounds.Min.Z + bounds.Max.Z) / 2;
+            var centerX = header.OriginX + ((double)bounds.Min.X + bounds.Max.X) / 2;
+            var centerY = header.OriginY + ((double)bounds.Min.Y + bounds.Max.Y) / 2;
+            var centerZ = header.OriginZ + ((double)bounds.Min.Z + bounds.Max.Z) / 2;
             ValidateCoordinate(centerX);
             ValidateCoordinate(centerY);
             ValidateCoordinate(centerZ);
@@ -112,7 +128,7 @@ public static class ElementMatcher
             if (string.IsNullOrEmpty(info.UniqueId)) throw new ArgumentException("Пустой UniqueId элемента геометрии.");
             if (!result.TryAdd(info.UniqueId, new(info.UniqueId, info.Category, info.Family, info.Type,
                     centerX, centerY, centerZ, width, height, depth)))
-                throw new ArgumentException($"Повторный UniqueId '{info.UniqueId}' в геометрии модели '{model.Header.ModelKey}'.");
+                throw new ArgumentException($"Повторный UniqueId '{info.UniqueId}' в геометрии модели '{header.ModelKey}'.");
         }
         return result;
     }
