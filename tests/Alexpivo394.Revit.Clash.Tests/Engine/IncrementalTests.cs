@@ -154,4 +154,25 @@ public sealed class IncrementalTests
 
         public int GetHashCode(ClashHit obj) => HashCode.Combine(obj.A, obj.B);
     }
+
+    [Test]
+    public void Engine_Incremental_DepthJustOverTolerance_SameChecks()
+    {
+        // Глубина 20.5 − 0.49999997 = 20.00000003 мм: в double больше допуска 20, а записанная во float — ровно 20. Решает записанная:
+        // иначе повтор с основой сравнил бы с допуском другое число и потерял бы проверку.
+        var models = new[]
+        {
+            WithFingerprints(TestScenes.Model("ar", "AR", Zero,
+                [new("wall", "OST_Walls", TestScenes.Box(new Vector3(-1000, 0, 0), new Vector3(20.5f, 1000, 1000)))]), new Dictionary<string, string>()),
+            WithFingerprints(TestScenes.Model("vk", "VK", Zero,
+                [new("p1", "OST_PipeCurves", TestScenes.Box(new Vector3(0.49999997f, 0, 0), new Vector3(1000, 1000, 1000)))]), new Dictionary<string, string>())
+        };
+        var config = Config(ArAll);
+        var first = Run(models, config);
+
+        var second = Run(models, config, Base(models, config, first));
+
+        second.Hits.ShouldBe(first.Hits, ignoreOrder: false, comparer: HitComparer.Instance);
+        first.Hits.ShouldBeEmpty();
+    }
 }

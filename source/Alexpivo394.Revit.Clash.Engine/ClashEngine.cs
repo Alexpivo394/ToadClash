@@ -269,7 +269,8 @@ public sealed class ClashEngine(EngineOptions options)
             }
 
             var tolerance = Math.Max(pair.ToleranceMm, MinToleranceMm);
-            var depth = PenetrationDepth.Estimate(
+            // Решение — по глубине, которая записывается в коллизию: повтор с основой сравнивает с допуском её же.
+            var depth = (float)PenetrationDepth.Estimate(
                 a, narrow.BvhOf(pair.A), b, narrow.BvhOf(pair.B), zone.Expand(tolerance + ZoneMargin), _shared, _scratch);
             if (!(depth > tolerance)) return false;
 
@@ -280,7 +281,7 @@ public sealed class ClashEngine(EngineOptions options)
                 scene.OriginX + ((double)zone.Min.X + zone.Max.X) / 2,
                 scene.OriginY + ((double)zone.Min.Y + zone.Max.Y) / 2,
                 scene.OriginZ + ((double)zone.Min.Z + zone.Max.Z) / 2,
-                (float)depth,
+                depth,
                 ChecksOf(scene.Groups, pair, depth));
             return true;
         }
