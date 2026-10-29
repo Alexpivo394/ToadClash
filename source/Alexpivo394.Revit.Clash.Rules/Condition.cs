@@ -13,7 +13,10 @@ public enum ConditionOperator
     Greater,
     Less,
     IsEmpty,
-    IsNotEmpty
+    IsNotEmpty,
+
+    /// <summary>Значение равно одному из <see cref="Condition.Values"/>.</summary>
+    OneOf
 }
 
 /// <summary>
@@ -21,7 +24,8 @@ public enum ConditionOperator
 ///     Если свойства нет, <see cref="ConditionOperator.IsEmpty"/>, <see cref="ConditionOperator.NotEquals"/> и
 ///     <see cref="ConditionOperator.NotContains"/> дают true, остальные операторы - false.
 /// </summary>
-public sealed record Condition(PropertyRef Property, ConditionOperator Operator, string? Value)
+/// <param name="Values">Значения для <see cref="ConditionOperator.OneOf"/>; другие операторы берут <paramref name="Value"/>.</param>
+public sealed record Condition(PropertyRef Property, ConditionOperator Operator, string? Value, IReadOnlyList<string>? Values = null)
 {
     /// <summary>Проверяет, удовлетворяет ли элемент условию.</summary>
     /// <param name="info">Описание элемента.</param>
@@ -31,7 +35,7 @@ public sealed record Condition(PropertyRef Property, ConditionOperator Operator,
         if (info is null) throw new ArgumentNullException(nameof(info));
         if (parameters is null) throw new ArgumentNullException(nameof(parameters));
 
-        var (text, number) = Resolve(info, parameters);
+        var (text, number) = Resolve(Property, info, parameters);
         var isEmpty = string.IsNullOrWhiteSpace(text) && number is null;
         var expected = Value ?? "";
 
@@ -45,13 +49,15 @@ public sealed record Condition(PropertyRef Property, ConditionOperator Operator,
             ConditionOperator.NotContains => text is null || text.IndexOf(expected, StringComparison.OrdinalIgnoreCase) < 0,
             ConditionOperator.Greater => Compare(text, number) is { } greater && greater > 0,
             ConditionOperator.Less => Compare(text, number) is { } less && less < 0,
+            ConditionOperator.OneOf => text is not null && Values is not null && Values.Any(v => string.Equals(text, v, StringComparison.OrdinalIgnoreCase)),
             _ => false
         };
     }
 
-    private (string? Text, double? Number) Resolve(ElementInfo info, IReadOnlyList<ParameterValue> parameters)
+    /// <summary>Значение свойства элемента: текст и, если есть, число.</summary>
+    internal static (string? Text, double? Number) Resolve(PropertyRef property, ElementInfo info, IReadOnlyList<ParameterValue> parameters)
     {
-        switch (Property.Kind)
+        switch (property.Kind)
         {
             case PropertyKind.Category: return (info.Category, null);
             case PropertyKind.Family: return (info.Family, null);
@@ -60,24 +66,24 @@ public sealed record Condition(PropertyRef Property, ConditionOperator Operator,
             case PropertyKind.Workset: return (info.Workset, null);
         }
 
-        var parameter = FindParameter(parameters);
+        var parameter = FindParameter(property, parameters);
         if (parameter is null) return (null, null);
 
         var text = parameter.Text ?? parameter.Number?.ToString("R", CultureInfo.InvariantCulture);
         return (text, parameter.Number);
     }
 
-    private ParameterValue? FindParameter(IReadOnlyList<ParameterValue> parameters)
+    private static ParameterValue? FindParameter(PropertyRef property, IReadOnlyList<ParameterValue> parameters)
     {
-        if (Property.SharedGuid is { } guid)
+        if (property.SharedGuid is { } guid)
         {
             foreach (var parameter in parameters)
                 if (parameter.SharedGuid == guid) return parameter;
         }
 
-        if (string.IsNullOrEmpty(Property.ParameterName)) return null;
+        if (string.IsNullOrEmpty(property.ParameterName)) return null;
         foreach (var parameter in parameters)
-            if (string.Equals(parameter.Name, Property.ParameterName, StringComparison.OrdinalIgnoreCase)) return parameter;
+            if (string.Equals(parameter.Name, property.ParameterName, StringComparison.OrdinalIgnoreCase)) return parameter;
 
         return null;
     }

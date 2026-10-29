@@ -107,6 +107,8 @@ public static class ConfigurationValidator
             case ConditionOperator.Equals or ConditionOperator.NotEquals or ConditionOperator.Contains or ConditionOperator.NotContains
                 when string.IsNullOrWhiteSpace(condition.Value):
                 return "у условия не задано значение";
+            case ConditionOperator.OneOf when condition.Values is null || condition.Values.All(string.IsNullOrWhiteSpace):
+                return "в условии «одно из» не выбрано ни одного значения";
             default:
                 return null;
         }

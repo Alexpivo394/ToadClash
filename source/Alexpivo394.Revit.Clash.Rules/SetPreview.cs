@@ -49,4 +49,27 @@ public static class SetPreview
 
         return new SetPreviewResult(matched, total, byAnyOf, elements);
     }
+
+    /// <summary>Элементы источника группы, не попавшие ни в один её набор, — что забыли отобрать.</summary>
+    public static UnassignedResult Unassigned(ClashConfiguration config, Guid groupId, IReadOnlyList<ElementsInput> models)
+    {
+        if (config is null) throw new ArgumentNullException(nameof(config));
+        if (models is null) throw new ArgumentNullException(nameof(models));
+
+        var sets = config.Sets.Where(s => s.GroupId == groupId).ToList();
+        var count = 0;
+        var byCategory = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (model, info) in PropertyValues.Elements(config, groupId, models))
+        {
+            var parameters = model.Parameters.For(info.UniqueId);
+            if (sets.Any(s => SetMembership.Matches(s, info, parameters))) continue;
+            count++;
+            byCategory[info.Category] = byCategory.TryGetValue(info.Category, out var n) ? n + 1 : 1;
+        }
+
+        return new UnassignedResult(count, PropertyValues.Ordered(byCategory, int.MaxValue));
+    }
 }
+
+/// <summary>Сколько элементов источника группы не попало ни в один её набор, по категориям.</summary>
+public sealed record UnassignedResult(int Count, IReadOnlyList<ValueCount> ByCategory);
