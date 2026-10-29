@@ -106,6 +106,7 @@ namespace Autodesk.Revit.DB
         public ICollection<ElementId> GetSubComponentIds() => Children;
         public Element? SuperComponent { get; init; }
     }
+    public class InsulationLiningBase : Element { public ElementId HostElementId { get; init; } = ElementId.InvalidElementId; }
     public class View : Element;
     public sealed class View3D : View { public bool IsTemplate => false; }
     public sealed class Group : Element;

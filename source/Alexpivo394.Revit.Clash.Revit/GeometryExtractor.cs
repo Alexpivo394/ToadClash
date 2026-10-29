@@ -279,9 +279,14 @@ public static class GeometryExtractor
             RootComponentUniqueId(element));
     }
 
-    /// <summary>Экземпляр верхнего уровня цепочки вложенных общих семейств; null, если элемент не вложен.</summary>
+    /// <summary>
+    ///     Экземпляр верхнего уровня цепочки вложенных общих семейств; null, если элемент не вложен. Изоляция и облицовка
+    ///     относятся к изделию своей основы: против неё они не проверяются.
+    /// </summary>
     private static string? RootComponentUniqueId(Element element)
     {
+        if (element is InsulationLiningBase insulation)
+            return insulation.HostElementId.ToElement(element.Document) is { } host ? RootComponentUniqueId(host) ?? host.UniqueId : null;
         if (element is not FamilyInstance { SuperComponent: { } super }) return null;
         var root = super;
         // Глубина вложенности семейств Revit невелика; ограничение защищает от циклической ссылки.

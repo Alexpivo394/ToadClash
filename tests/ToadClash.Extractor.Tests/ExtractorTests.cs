@@ -80,6 +80,22 @@ public sealed class ExtractorTests
         Root(new Element { Id = new(4), Document = doc }).ShouldBeNull();
     }
 
+    [Test]
+    public void RootComponent_OfInsulation_IsProductOfHost()
+    {
+        var doc = new Document();
+        var fitting = new FamilyInstance { Id = new(1), Document = doc };
+        var nestedFitting = new FamilyInstance { Id = new(2), Document = doc, SuperComponent = fitting };
+        var pipe = new Element { Id = new(3), Document = doc };
+        doc.Elements.AddRange([fitting, nestedFitting, pipe]);
+
+        Root(new InsulationLiningBase { Id = new(4), Document = doc, HostElementId = pipe.Id }).ShouldBe("3");
+        Root(new InsulationLiningBase { Id = new(5), Document = doc, HostElementId = fitting.Id }).ShouldBe("1");
+        Root(new InsulationLiningBase { Id = new(6), Document = doc, HostElementId = nestedFitting.Id }).ShouldBe("1");
+        Root(new InsulationLiningBase { Id = new(7), Document = doc, HostElementId = new(99) }).ShouldBeNull();
+        Root(new InsulationLiningBase { Id = new(8), Document = doc }).ShouldBeNull();
+    }
+
     private static string? Root(Element element) => (string?)typeof(GeometryExtractor)
         .GetMethod("RootComponentUniqueId", BindingFlags.NonPublic | BindingFlags.Static)!
         .Invoke(null, [element]);
