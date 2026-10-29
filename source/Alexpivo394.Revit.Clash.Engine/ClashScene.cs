@@ -8,8 +8,8 @@ internal sealed class SceneElement
 {
     public required ElementRef Ref { get; init; }
 
-    /// <summary>Индекс раздела в <see cref="ClashScene.Disciplines"/>.</summary>
-    public required int Discipline { get; init; }
+    /// <summary>Индексы групп элемента в <see cref="ClashScene.Groups"/>: элемент может входить в несколько групп.</summary>
+    public required int[] Groups { get; init; }
 
     public required Guid[] Sets { get; init; }
 
@@ -40,7 +40,7 @@ public sealed class ClashScene
 
     private ClashScene(
         List<SceneElement> elements,
-        List<Guid> disciplines,
+        List<Guid> groups,
         HashSet<(int, int)> connected,
         double originX,
         double originY,
@@ -48,7 +48,7 @@ public sealed class ClashScene
         long triangleCount)
     {
         Elements = elements;
-        Disciplines = disciplines;
+        Groups = groups;
         _connected = connected;
         OriginX = originX;
         OriginY = originY;
@@ -58,7 +58,8 @@ public sealed class ClashScene
 
     internal IReadOnlyList<SceneElement> Elements { get; }
 
-    internal IReadOnlyList<Guid> Disciplines { get; }
+    /// <summary>Id групп конфигурации, в которые попал хотя бы один элемент сцены.</summary>
+    internal IReadOnlyList<Guid> Groups { get; }
 
     /// <summary>Начало системы координат сцены, мм.</summary>
     public double OriginX { get; }
@@ -87,8 +88,8 @@ public sealed class ClashScene
         var oz = header0?.OriginZ ?? 0;
 
         var elements = new List<SceneElement>();
-        var disciplines = new List<Guid>();
-        var disciplineIndex = new Dictionary<Guid, int>();
+        var groups = new List<Guid>();
+        var groupIndex = new Dictionary<Guid, int>();
         var connected = new HashSet<(int, int)>();
         long triangles = 0;
 
@@ -106,12 +107,18 @@ public sealed class ClashScene
                 var info = element.Info;
                 var sets = membership.SetsOf(header.ModelKey, info.UniqueId);
                 if (sets.Count == 0) continue;
-                var group = membership.GroupsOf(header.ModelKey, info.UniqueId)[0];
-                if (!disciplineIndex.TryGetValue(group, out var discipline))
+                var memberOf = membership.GroupsOf(header.ModelKey, info.UniqueId);
+                var groupIndices = new int[memberOf.Count];
+                for (var g = 0; g < memberOf.Count; g++)
                 {
-                    discipline = disciplines.Count;
-                    disciplines.Add(group);
-                    disciplineIndex[group] = discipline;
+                    if (!groupIndex.TryGetValue(memberOf[g], out var gi))
+                    {
+                        gi = groups.Count;
+                        groups.Add(memberOf[g]);
+                        groupIndex[memberOf[g]] = gi;
+                    }
+
+                    groupIndices[g] = gi;
                 }
 
                 var mesh = element.Mesh;
@@ -124,7 +131,7 @@ public sealed class ClashScene
                 elements.Add(new SceneElement
                 {
                     Ref = new ElementRef(header.ModelKey, info.UniqueId),
-                    Discipline = discipline,
+                    Groups = groupIndices,
                     Sets = [.. sets],
                     Bounds = Aabb.FromPositions(positions),
                     Positions = positions,
@@ -147,7 +154,7 @@ public sealed class ClashScene
             }
         }
 
-        return new ClashScene(elements, disciplines, connected, ox, oy, oz, triangles);
+        return new ClashScene(elements, groups, connected, ox, oy, oz, triangles);
     }
 
     /// <summary>Соединены ли элементы: одна модель и ссылка ConnectedUniqueIds в любую сторону.</summary>

@@ -131,6 +131,6 @@ public sealed class PairFilterTests
         var config = Config();
         var (_, filter) = Setup(config, TestScenes.Model("ov", "OV", Zero, [new("p", "OST_PipeCurves", Cube())]));
 
-        filter.Passes(0, 0, out _).ShouldBeFalse();
+        filter.Passes(0, 0, 0, 0, out _).ShouldBeFalse();
     }
 }

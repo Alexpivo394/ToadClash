@@ -173,8 +173,22 @@ public sealed class ClashEngine(EngineOptions options)
                 scene.OriginX + ((double)zone.Min.X + zone.Max.X) / 2,
                 scene.OriginY + ((double)zone.Min.Y + zone.Max.Y) / 2,
                 scene.OriginZ + ((double)zone.Min.Z + zone.Max.Z) / 2,
-                (float)depth);
+                (float)depth,
+                ChecksOf(pair, depth));
             return true;
+        }
+
+        // Проверки, в которых глубина больше допуска своей клетки; клетка с наименьшим допуском проходит всегда.
+        private IReadOnlyList<CheckRef> ChecksOf(CandidatePair pair, double depth)
+        {
+            var groups = narrow.Scene.Groups;
+            var checks = new List<CheckRef>(pair.Cells.Length);
+            foreach (var cell in pair.Cells)
+            {
+                if (depth > Math.Max(cell.ToleranceMm, MinToleranceMm)) checks.Add(CheckRef.Of(groups[cell.GroupA], groups[cell.GroupB]));
+            }
+
+            return checks;
         }
 
         // Вершины элемента source в общем габарите, лежащие внутри замкнутого outer; не больше MaxInsideSamples проверок.

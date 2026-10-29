@@ -11,7 +11,8 @@ public sealed record EngineOptions(int MaxDegreeOfParallelism = 0);
 /// <param name="PointY">Точка коллизии (центр зоны пересечения), мм.</param>
 /// <param name="PointZ">Точка коллизии (центр зоны пересечения), мм.</param>
 /// <param name="DepthMm">Оценка глубины проникновения, мм.</param>
-public sealed record ClashHit(ElementRef A, ElementRef B, double PointX, double PointY, double PointZ, float DepthMm);
+/// <param name="Checks">Проверки (клетки матрицы), в которых глубина больше допуска клетки; пара в нескольких группах — одна коллизия.</param>
+public sealed record ClashHit(ElementRef A, ElementRef B, double PointX, double PointY, double PointZ, float DepthMm, IReadOnlyList<CheckRef> Checks);
 
 /// <summary>Статистика прогона.</summary>
 /// <param name="Elements">Число элементов сцены.</param>
@@ -30,3 +31,14 @@ public sealed record ClashRunStats(
 
 /// <summary>Результат прогона: коллизии, отсортированные по (A, B), и статистика.</summary>
 public sealed record ClashRunResult(IReadOnlyList<ClashHit> Hits, ClashRunStats Stats);
+/// <summary>Проверка — клетка матрицы, пара групп. Группы упорядочены по строке Id в форме N, поэтому пара однозначна.</summary>
+public sealed record CheckRef(Guid GroupA, Guid GroupB)
+{
+    /// <summary>Проверка пары групп в любом порядке.</summary>
+    public static CheckRef Of(Guid a, Guid b) =>
+        string.CompareOrdinal(a.ToString("N"), b.ToString("N")) <= 0 ? new CheckRef(a, b) : new CheckRef(b, a);
+
+    /// <summary>Ключ проверки: <c>{GroupA:N}|{GroupB:N}</c>.</summary>
+    public string Key => $"{GroupA:N}|{GroupB:N}";
+}
+

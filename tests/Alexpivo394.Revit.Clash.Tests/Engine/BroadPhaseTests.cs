@@ -84,9 +84,9 @@ public sealed class BroadPhaseTests
         {
             for (var b = a + 1; b < scene.Elements.Count; b++)
             {
-                var da = scene.Elements[a].Discipline;
-                var db = scene.Elements[b].Discipline;
-                var enabled = da != db || scene.Disciplines[da] == ConfigurationDefaults.DisciplineGroupId("OV");
+                var da = scene.Elements[a].Groups[0];
+                var db = scene.Elements[b].Groups[0];
+                var enabled = da != db || scene.Groups[da] == ConfigurationDefaults.DisciplineGroupId("OV");
                 if (enabled && scene.Elements[a].Bounds.Overlaps(scene.Elements[b].Bounds)) expected.Add((a, b));
             }
         }
