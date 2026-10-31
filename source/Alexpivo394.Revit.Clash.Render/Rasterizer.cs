@@ -58,6 +58,7 @@ internal sealed class Rasterizer
     private readonly float[] _depth;
     private readonly byte[] _ids;
     private readonly byte[]? _rgb;
+    private bool[]? _cover;
 
     public Rasterizer(Camera camera, float halfSize, int width, int height, bool withColor)
     {
@@ -94,12 +95,50 @@ internal sealed class Rasterizer
     }
 
     /// <summary>Окружение: смешивание с непрозрачностью 0.25 без проверки и записи глубины.</summary>
-    public void DrawContext(RenderMesh mesh) => Draw(mesh, 0, Palette.Context, opaque: false);
+    public void DrawContext(RenderMesh mesh) => Draw(mesh, 0, Palette.Context, Mode.Context);
 
     /// <summary>Непрозрачный объект с буфером глубины.</summary>
-    public void DrawOpaque(RenderMesh mesh, byte id, Rgb color) => Draw(mesh, id, color, opaque: true);
+    public void DrawOpaque(RenderMesh mesh, byte id, Rgb color) => Draw(mesh, id, color, Mode.Opaque);
 
-    private void Draw(RenderMesh mesh, byte id, Rgb color, bool opaque)
+    /// <summary>
+    ///     Скрытая сторона: если объект <paramref name="id"/> закрыт другим больше чем на две трети своих пикселей, закрытая
+    ///     часть рисуется штриховкой его цвета поверх — иначе труба внутри короба на картинке не видна ни с одного ракурса.
+    /// </summary>
+    public void HatchHidden(IEnumerable<RenderMesh> meshes, byte id, Rgb color)
+    {
+        _cover = new bool[Width * Height];
+        foreach (var mesh in meshes) Draw(mesh, id, color, Mode.Cover);
+        var cover = _cover;
+        _cover = null;
+
+        int visible = 0, hidden = 0;
+        for (var i = 0; i < cover.Length; i++)
+        {
+            if (!cover[i]) continue;
+            if (_ids[i] == id) visible++;
+            else hidden++;
+        }
+
+        if (hidden <= 2 * visible || _rgb is null) return;
+        for (var y = 0; y < Height; y++)
+        for (var x = 0; x < Width; x++)
+        {
+            var pixel = y * Width + x;
+            if (!cover[pixel] || _ids[pixel] == id || (x + y) % 6 >= 3) continue;
+            _rgb[pixel * 3] = color.R;
+            _rgb[pixel * 3 + 1] = color.G;
+            _rgb[pixel * 3 + 2] = color.B;
+        }
+    }
+
+    private enum Mode
+    {
+        Context,
+        Opaque,
+        Cover
+    }
+
+    private void Draw(RenderMesh mesh, byte id, Rgb color, Mode mode)
     {
         var positions = mesh.Positions;
         var indices = mesh.Indices;
@@ -124,7 +163,7 @@ internal sealed class Rasterizer
             for (var k = 2; k < count; k++)
             {
                 var current = _camera.Project(polygon[k]);
-                Fill(p0, previous, current, id, shade, opaque);
+                Fill(p0, previous, current, id, shade, mode);
                 previous = current;
             }
         }
@@ -133,7 +172,7 @@ internal sealed class Rasterizer
     private static Vector3 Vertex(float[] positions, int index) =>
         new(positions[index * 3], positions[index * 3 + 1], positions[index * 3 + 2]);
 
-    private void Fill(Vector3 a, Vector3 b, Vector3 c, byte id, Vector3 shade, bool opaque)
+    private void Fill(Vector3 a, Vector3 b, Vector3 c, byte id, Vector3 shade, Mode mode)
     {
         var area = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
         if (MathF.Abs(area) < 1e-6f) return;
@@ -157,8 +196,22 @@ internal sealed class Rasterizer
             -(c.Y - b.Y), -(a.Y - c.Y), -(b.Y - a.Y),
             c.X - b.X, a.X - c.X, b.X - a.X);
 
-        if (opaque) FillOpaque(edges, minX, maxX, minY, maxY, a.Z / area, b.Z / area, c.Z / area, id, shade);
+        if (mode == Mode.Opaque) FillOpaque(edges, minX, maxX, minY, maxY, a.Z / area, b.Z / area, c.Z / area, id, shade);
+        else if (mode == Mode.Cover) FillCover(edges, minX, maxX, minY, maxY);
         else if (_rgb is not null) FillContext(edges, minX, maxX, minY, maxY, shade);
+    }
+
+    /// <summary>Отмечает пиксели, покрытые треугольником, без глубины и цвета.</summary>
+    private void FillCover(Edges e, int minX, int maxX, int minY, int maxY)
+    {
+        var cover = _cover!;
+        float w0Row = e.W0, w1Row = e.W1, w2Row = e.W2;
+        for (var y = minY; y <= maxY; y++, w0Row += e.W0Dy, w1Row += e.W1Dy, w2Row += e.W2Dy)
+        {
+            float w0 = w0Row, w1 = w1Row, w2 = w2Row;
+            for (var x = minX; x <= maxX; x++, w0 += e.W0Dx, w1 += e.W1Dx, w2 += e.W2Dx)
+                if (w0 >= 0 && w1 >= 0 && w2 >= 0) cover[y * Width + x] = true;
+        }
     }
 
     private readonly record struct Edges(float W0, float W1, float W2, float W0Dx, float W1Dx, float W2Dx, float W0Dy, float W1Dy, float W2Dy);

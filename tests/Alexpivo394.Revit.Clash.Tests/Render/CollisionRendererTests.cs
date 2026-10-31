@@ -130,6 +130,19 @@ public sealed class CollisionRendererTests
         Vector3.Dot(image.ViewDirection, normal).ShouldBeGreaterThan(0f, "камера должна смотреть с северо-восточной стороны стены");
     }
 
+    [Test]
+    public void Render_PipeInsideClosedBox_HiddenSideHatched()
+    {
+        // Труба целиком внутри короба: ни с одного ракурса её не видно — скрытая часть показывается штриховкой своего цвета.
+        var box = Box(RenderRole.B, new Vector3(-500, -200, -200), new Vector3(500, 200, 200));
+        var pipe = Pipe(RenderRole.A, new Vector3(-400, 0, 0), new Vector3(400, 0, 0), 50);
+
+        var picture = new Picture(CollisionRenderer.Render([pipe, box], 600).Png);
+
+        picture.Count(IsRed).ShouldBeGreaterThan(200);
+        picture.Count(IsBlue).ShouldBeGreaterThan(200);
+    }
+
     private static RenderMesh WallMesh(List<Vector3> c)
     {
         // Порядок углов: t (2) × s (2) × z (2) — индекс = t*4 + s*2 + z

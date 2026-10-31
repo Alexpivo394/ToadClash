@@ -44,6 +44,8 @@ public static class CollisionRenderer
             else if (mesh.Role == RenderRole.B) rasterizer.DrawOpaque(mesh, 2, Palette.B);
         }
 
+        rasterizer.HatchHidden(meshes.Where(m => m.Role == RenderRole.A), 1, Palette.A);
+        rasterizer.HatchHidden(meshes.Where(m => m.Role == RenderRole.B), 2, Palette.B);
         rasterizer.Outline();
         rasterizer.Ring();
         return new RenderedImage(Png.Encode(rasterizer.Pixels, options.Width, options.Height), options.Width, options.Height, halfSizeMm, view);
