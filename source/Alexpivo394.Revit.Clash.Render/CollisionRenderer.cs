@@ -18,6 +18,13 @@ public static class CollisionRenderer
     /// <summary>Наибольшая половина стороны секущего куба, мм.</summary>
     public const double MaxHalfSizeMm = 3000;
 
+    /// <summary>Рисует сцену, собранную <see cref="CollisionSceneIndex"/>.</summary>
+    public static RenderedImage Render(RenderScene scene, RenderOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        return Render(scene.Meshes, scene.HalfSizeMm, options);
+    }
+
     /// <summary>Рисует коллизию. Позиции сеток — относительно точки коллизии, мм.</summary>
     public static RenderedImage Render(IReadOnlyList<RenderMesh> meshes, double halfSizeMm, RenderOptions? options = null)
     {
