@@ -1,4 +1,5 @@
 using System.Numerics;
+using Alexpivo394.Revit.Clash.Engine;
 using Alexpivo394.Revit.Clash.Geometry;
 
 namespace Alexpivo394.Revit.Clash.Render;
@@ -40,7 +41,27 @@ public static class CollisionScenes
 
         var a = Find(models, target.ModelA, target.UniqueIdA);
         var b = Find(models, target.ModelB, target.UniqueIdB);
-        var half = CollisionRenderer.HalfSize(RelativeBounds(models, a, x, y, z), RelativeBounds(models, b, x, y, z));
+        var streams = new Stream?[models.Count];
+        try
+        {
+            return Build(models, streams, a, b, x, y, z, contextTriangleBudget);
+        }
+        finally
+        {
+            foreach (var stream in streams) stream?.Dispose();
+        }
+    }
+
+    private static RenderScene Build(IReadOnlyList<SceneModel> models, Stream?[] streams, (int Model, int Element) a, (int Model, int Element) b,
+        double x, double y, double z, long contextTriangleBudget)
+    {
+        var meshA = Read(models, streams, a.Model, a.Element, RenderRole.A, x, y, z);
+        var meshB = Read(models, streams, b.Model, b.Element, RenderRole.B, x, y, z);
+        // Куб — по зоне пересечения тел, а не габаритов: у длинных элементов под углом габариты пересекаются на метры.
+        var zone = IntersectionZone.Measure(meshA.Positions, meshA.Indices, meshB.Positions, meshB.Indices);
+        var half = zone == Aabb.Empty
+            ? CollisionRenderer.HalfSize(RelativeBounds(models, a, x, y, z), RelativeBounds(models, b, x, y, z))
+            : CollisionRenderer.HalfSize(zone);
 
         var inside = new List<Candidate>();
         for (var m = 0; m < models.Count; m++)
@@ -69,34 +90,22 @@ public static class CollisionScenes
 
         inside.Sort((l, r) => Compare(models, l, r));
 
-        var streams = new Stream?[models.Count];
-        try
+        var meshes = new List<RenderMesh> { meshA, meshB };
+        long total = 0;
+        var truncated = false;
+        foreach (var candidate in inside)
         {
-            var meshes = new List<RenderMesh>
+            if (total + candidate.Triangles > contextTriangleBudget)
             {
-                Read(models, streams, a.Model, a.Element, RenderRole.A, x, y, z),
-                Read(models, streams, b.Model, b.Element, RenderRole.B, x, y, z)
-            };
-            long total = 0;
-            var truncated = false;
-            foreach (var candidate in inside)
-            {
-                if (total + candidate.Triangles > contextTriangleBudget)
-                {
-                    truncated = true;
-                    continue;
-                }
-
-                total += candidate.Triangles;
-                meshes.Add(Read(models, streams, candidate.Model, candidate.Element, RenderRole.Context, x, y, z));
+                truncated = true;
+                continue;
             }
 
-            return new RenderScene(meshes, half, total, truncated);
+            total += candidate.Triangles;
+            meshes.Add(Read(models, streams, candidate.Model, candidate.Element, RenderRole.Context, x, y, z));
         }
-        finally
-        {
-            foreach (var stream in streams) stream?.Dispose();
-        }
+
+        return new RenderScene(meshes, half, total, truncated);
     }
 
     private static int Compare(IReadOnlyList<SceneModel> models, Candidate l, Candidate r)

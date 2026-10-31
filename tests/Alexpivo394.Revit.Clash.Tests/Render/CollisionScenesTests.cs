@@ -232,6 +232,47 @@ public sealed class CollisionScenesTests
         Should.Throw<KeyNotFoundException>(() => Build(models, "nope", "a", "ar", "a", 0, 0, 0));
     }
 
+    /// <summary>Сетка, повёрнутая вокруг оси Z на <paramref name="degrees"/>.</summary>
+    private static ElementMesh RotatedZ(ElementMesh mesh, float degrees)
+    {
+        var rotation = Matrix4x4.CreateRotationZ(degrees * MathF.PI / 180);
+        var positions = new float[mesh.Positions.Length];
+        for (var i = 0; i + 2 < positions.Length; i += 3)
+        {
+            var p = Vector3.Transform(new Vector3(mesh.Positions[i], mesh.Positions[i + 1], mesh.Positions[i + 2]), rotation);
+            (positions[i], positions[i + 1], positions[i + 2]) = (p.X, p.Y, p.Z);
+        }
+
+        return new ElementMesh(positions, mesh.Indices);
+    }
+
+    [Test]
+    public void Build_DiagonalPipeThroughDiagonalWall_CubeFitsBodies()
+    {
+        // Стена 10 м × 200 мм и труба Ø100 поперёк неё, обе под 45° к осям: габариты пересекаются на ~7 м, тела — на ~200 мм.
+        var wall = RotatedZ(TestScenes.Box(new Vector3(-5000, -100, -1500), new Vector3(5000, 100, 1500)), 45);
+        var pipe = RotatedZ(TestScenes.Cylinder(new Vector3(0, -10_000, 0), new Vector3(0, 10_000, 0), 50, 16), 45);
+        SceneModel[] models = [Scene("kr", (0, 0, 0), Element("wall", wall)), Scene("vk", (0, 0, 0), Element("pipe", pipe))];
+        CollisionRenderer.HalfSize(Aabb.FromPositions(wall.Positions), Aabb.FromPositions(pipe.Positions)).ShouldBe(CollisionRenderer.MaxHalfSizeMm);
+
+        var scene = Build(models, "kr", "wall", "vk", "pipe", 0, 0, 0);
+
+        scene.HalfSizeMm.ShouldBe(CollisionRenderer.MinHalfSizeMm);
+    }
+
+    [Test]
+    public void Build_ElementInsideOther_CubeFitsInner()
+    {
+        // Труба 1,8 м целиком внутри короба 2 м: поверхности не пересекаются, куб — по вложенной трубе (900 + 400 мм).
+        var box = TestScenes.Box(new Vector3(-1000, -200, -200), new Vector3(1000, 200, 200));
+        var pipe = TestScenes.Cylinder(new Vector3(-900, 0, 0), new Vector3(900, 0, 0), 50, 16);
+        SceneModel[] models = [Scene("ov", (0, 0, 0), Element("box", box)), Scene("vk", (0, 0, 0), Element("pipe", pipe))];
+
+        var scene = Build(models, "ov", "box", "vk", "pipe", 0, 0, 0);
+
+        scene.HalfSizeMm.ShouldBe(1300, 1);
+    }
+
     [Test]
     public void Render_Scene_UsesSceneHalfSize()
     {

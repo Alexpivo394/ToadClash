@@ -37,10 +37,12 @@ internal sealed class MeshBvh
     public bool IsClosed { get; }
 
     /// <summary>Строит дерево по сетке элемента сцены.</summary>
-    public static MeshBvh Build(SceneElement element)
+    public static MeshBvh Build(SceneElement element) => Build(element.Positions, element.Indices);
+
+    /// <summary>Строит дерево по сетке: позиции — тройки xyz, индексы — тройки треугольников.</summary>
+    public static MeshBvh Build(float[] positions, int[] elementIndices)
     {
-        var positions = element.Positions;
-        var indices = MeshTopology.Orient(positions, element.Indices, out var closed);
+        var indices = MeshTopology.Orient(positions, elementIndices, out var closed);
         var triangleCount = indices.Length / 3;
         var triangles = new List<int>(triangleCount);
         for (var t = 0; t < triangleCount; t++)

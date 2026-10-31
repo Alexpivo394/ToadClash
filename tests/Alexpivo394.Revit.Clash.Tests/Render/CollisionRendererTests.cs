@@ -71,7 +71,7 @@ public sealed class CollisionRendererTests
         picture.Width.ShouldBe(640);
         picture.CountNearCenter(20, IsRed).ShouldBeGreaterThan(0);
         picture.CountNearCenter(20, IsBlue).ShouldBeGreaterThan(0);
-        picture.Count(IsRing).ShouldBeGreaterThan(20);
+        picture.Count(IsRing).ShouldBe(0); // без кольца в точке коллизии: по заказчику оно лишнее
     }
 
     [Test]

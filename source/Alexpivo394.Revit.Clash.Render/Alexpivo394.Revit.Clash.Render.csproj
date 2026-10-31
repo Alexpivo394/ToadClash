@@ -15,6 +15,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Alexpivo394.Revit.Clash.Geometry\Alexpivo394.Revit.Clash.Geometry.csproj"/>
+        <ProjectReference Include="..\Alexpivo394.Revit.Clash.Engine\Alexpivo394.Revit.Clash.Engine.csproj"/>
     </ItemGroup>
 
 </Project>

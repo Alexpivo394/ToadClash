@@ -5,7 +5,7 @@ namespace Alexpivo394.Revit.Clash.Render;
 
 /// <summary>
 ///     Картинка коллизии на процессоре. Ортографическая камера смотрит на точку коллизии, геометрия обрезана секущим кубом.
-///     Сначала окружение полупрозрачно без глубины, потом A и B непрозрачно со своим буфером глубины, обводка и кольцо в центре.
+///     Сначала окружение полупрозрачно без глубины, потом A и B непрозрачно со своим буфером глубины и обводка.
 /// </summary>
 public static class CollisionRenderer
 {
@@ -47,7 +47,6 @@ public static class CollisionRenderer
         rasterizer.HatchHidden(meshes.Where(m => m.Role == RenderRole.A), 1, Palette.A);
         rasterizer.HatchHidden(meshes.Where(m => m.Role == RenderRole.B), 2, Palette.B);
         rasterizer.Outline();
-        rasterizer.Ring();
         return new RenderedImage(Png.Encode(rasterizer.Pixels, options.Width, options.Height), options.Width, options.Height, halfSizeMm, view);
     }
 
@@ -55,13 +54,17 @@ public static class CollisionRenderer
     ///     Половина стороны секущего куба: половина наибольшего размера пересечения габаритов A и B плюс <see cref="MarginMm"/>,
     ///     в пределах <see cref="MinHalfSizeMm"/>–<see cref="MaxHalfSizeMm"/>. Габариты — относительно точки коллизии.
     /// </summary>
-    public static double HalfSize(Aabb a, Aabb b)
-    {
-        var min = Vector3.Max(a.Min, b.Min);
-        var max = Vector3.Min(a.Max, b.Max);
-        if (!(min.X <= max.X && min.Y <= max.Y && min.Z <= max.Z)) return MinHalfSizeMm;
+    public static double HalfSize(Aabb a, Aabb b) => HalfSize(new Aabb(Vector3.Max(a.Min, b.Min), Vector3.Min(a.Max, b.Max)));
 
-        var size = max - min;
+    /// <summary>
+    ///     Половина стороны секущего куба по зоне пересечения тел (<see cref="Engine.IntersectionZone"/>): половина её
+    ///     наибольшего размера плюс <see cref="MarginMm"/>, в пределах <see cref="MinHalfSizeMm"/>–<see cref="MaxHalfSizeMm"/>.
+    /// </summary>
+    public static double HalfSize(Aabb zone)
+    {
+        if (!(zone.Min.X <= zone.Max.X && zone.Min.Y <= zone.Max.Y && zone.Min.Z <= zone.Max.Z)) return MinHalfSizeMm;
+
+        var size = zone.Max - zone.Min;
         var largest = Math.Max(size.X, Math.Max(size.Y, size.Z));
         return Math.Clamp(largest / 2.0 + MarginMm, MinHalfSizeMm, MaxHalfSizeMm);
     }

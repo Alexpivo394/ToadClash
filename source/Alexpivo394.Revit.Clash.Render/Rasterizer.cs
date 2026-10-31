@@ -13,7 +13,6 @@ internal static class Palette
     public static Rgb B { get; } = new(0x19, 0x71, 0xc2);
     public static Rgb Context { get; } = new(0xad, 0xb5, 0xbd);
     public static Rgb Outline { get; } = new(0x21, 0x25, 0x29);
-    public static Rgb Ring { get; } = new(0xe8, 0x59, 0x0c);
 }
 
 /// <summary>
@@ -299,30 +298,6 @@ internal sealed class Rasterizer
             rgb[pixel * 3] = outline.R;
             rgb[pixel * 3 + 1] = outline.G;
             rgb[pixel * 3 + 2] = outline.B;
-        }
-    }
-
-    /// <summary>Кольцо радиусом 8 пикселей в центре кадра — точка коллизии.</summary>
-    public void Ring(float radius = 8f, float thickness = 2f)
-    {
-        var rgb = Pixels;
-        var ring = Palette.Ring;
-        var inner = (radius - thickness / 2) * (radius - thickness / 2);
-        var outer = (radius + thickness / 2) * (radius + thickness / 2);
-        var cx = _camera.CenterX;
-        var cy = _camera.CenterY;
-        var reach = (int)MathF.Ceiling(radius + thickness);
-        for (var y = Math.Max(0, (int)cy - reach); y <= Math.Min(Height - 1, (int)cy + reach); y++)
-        for (var x = Math.Max(0, (int)cx - reach); x <= Math.Min(Width - 1, (int)cx + reach); x++)
-        {
-            var dx = x + 0.5f - cx;
-            var dy = y + 0.5f - cy;
-            var d = dx * dx + dy * dy;
-            if (d < inner || d >= outer) continue;
-            var i = (y * Width + x) * 3;
-            rgb[i] = ring.R;
-            rgb[i + 1] = ring.G;
-            rgb[i + 2] = ring.B;
         }
     }
 }
