@@ -13,7 +13,7 @@ using Sourcy.DotNet;
 namespace Build.Modules;
 
 /// <summary>
-///     Pack Geometry, Rules and Engine versioned {release}, and one Alexpivo394.Revit.Clash.Revit package per Revit year,
+///     Pack Geometry, Rules, Engine and Render versioned {release}, and one Alexpivo394.Revit.Clash.Revit package per Revit year,
 ///     versioned {year}.{release}. The release goes in as ClashVersion, not Version: a global Version would flow into the
 ///     referenced Geometry project and turn the Revit package's dependency into Geometry {year}.{release}.
 /// </summary>
@@ -33,7 +33,8 @@ public sealed class PackProjectModule(IOptions<BuildOptions> buildOptions) : Mod
         [
             Projects.Alexpivo394_Revit_Clash_Geometry.FullName,
             Projects.Alexpivo394_Revit_Clash_Rules.FullName,
-            Projects.Alexpivo394_Revit_Clash_Engine.FullName
+            Projects.Alexpivo394_Revit_Clash_Engine.FullName,
+            Projects.Alexpivo394_Revit_Clash_Render.FullName
         ];
 
         foreach (var library in libraries)

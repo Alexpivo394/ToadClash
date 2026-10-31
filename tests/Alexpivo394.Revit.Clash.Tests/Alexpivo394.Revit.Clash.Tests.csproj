@@ -15,6 +15,7 @@
         <ProjectReference Include="..\..\source\Alexpivo394.Revit.Clash.Geometry\Alexpivo394.Revit.Clash.Geometry.csproj"/>
         <ProjectReference Include="..\..\source\Alexpivo394.Revit.Clash.Rules\Alexpivo394.Revit.Clash.Rules.csproj"/>
         <ProjectReference Include="..\..\source\Alexpivo394.Revit.Clash.Engine\Alexpivo394.Revit.Clash.Engine.csproj"/>
+        <ProjectReference Include="..\..\source\Alexpivo394.Revit.Clash.Render\Alexpivo394.Revit.Clash.Render.csproj"/>
         <ProjectReference Include="..\..\tools\ToadClash.Bench\ToadClash.Bench.csproj"/>
     </ItemGroup>
 

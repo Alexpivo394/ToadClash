@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <RootNamespace>Alexpivo394.Revit.Clash.Render</RootNamespace>
+        <IsPackable>true</IsPackable>
+        <PackageId>Alexpivo394.Revit.Clash.Render</PackageId>
+        <Description>Clash image renderer: CPU rasterization of a collision inside a section box to PNG, without the Revit API.</Description>
+        <PackageTags>revit;autodesk;clash;render</PackageTags>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Alexpivo394.Revit.Clash.Tests"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Alexpivo394.Revit.Clash.Geometry\Alexpivo394.Revit.Clash.Geometry.csproj"/>
+    </ItemGroup>
+
+</Project>

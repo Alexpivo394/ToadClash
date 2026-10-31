@@ -78,6 +78,40 @@
       <BuildType Solution="Release.R26|*" Project="Release" />
       <BuildType Solution="Release.R27|*" Project="Release" />
     </Project>
+    <Project Path="source/Alexpivo394.Revit.Clash.Render/Alexpivo394.Revit.Clash.Render.csproj">
+      <BuildType Solution="Debug.R20|*" Project="Debug" />
+      <Build Solution="Debug.R20|*" Project="false" />
+      <BuildType Solution="Debug.R21|*" Project="Debug" />
+      <Build Solution="Debug.R21|*" Project="false" />
+      <BuildType Solution="Debug.R22|*" Project="Debug" />
+      <Build Solution="Debug.R22|*" Project="false" />
+      <BuildType Solution="Debug.R23|*" Project="Debug" />
+      <Build Solution="Debug.R23|*" Project="false" />
+      <BuildType Solution="Debug.R24|*" Project="Debug" />
+      <Build Solution="Debug.R24|*" Project="false" />
+      <BuildType Solution="Debug.R25|*" Project="Debug" />
+      <Build Solution="Debug.R25|*" Project="false" />
+      <BuildType Solution="Debug.R26|*" Project="Debug" />
+      <Build Solution="Debug.R26|*" Project="false" />
+      <BuildType Solution="Debug.R27|*" Project="Debug" />
+      <Build Solution="Debug.R27|*" Project="false" />
+      <BuildType Solution="Release.R20|*" Project="Release" />
+      <Build Solution="Release.R20|*" Project="false" />
+      <BuildType Solution="Release.R21|*" Project="Release" />
+      <Build Solution="Release.R21|*" Project="false" />
+      <BuildType Solution="Release.R22|*" Project="Release" />
+      <Build Solution="Release.R22|*" Project="false" />
+      <BuildType Solution="Release.R23|*" Project="Release" />
+      <Build Solution="Release.R23|*" Project="false" />
+      <BuildType Solution="Release.R24|*" Project="Release" />
+      <Build Solution="Release.R24|*" Project="false" />
+      <BuildType Solution="Release.R25|*" Project="Release" />
+      <Build Solution="Release.R25|*" Project="false" />
+      <BuildType Solution="Release.R26|*" Project="Release" />
+      <Build Solution="Release.R26|*" Project="false" />
+      <BuildType Solution="Release.R27|*" Project="Release" />
+      <Build Solution="Release.R27|*" Project="false" />
+    </Project>
     <Project Path="source/Alexpivo394.Revit.Clash.Revit/Alexpivo394.Revit.Clash.Revit.csproj">
       <BuildType Solution="Debug|*" Project="Debug.R24" />
       <Build Solution="Debug|*" Project="false" />
