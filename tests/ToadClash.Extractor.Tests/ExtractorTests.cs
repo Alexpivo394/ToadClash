@@ -104,6 +104,19 @@ public sealed class ExtractorTests
         Origin(new XYZ(-5000, 12, 1)).ShouldBe((0d, 0d, 0d));
     }
 
+    [Test]
+    public void Extract_FailingElement_IsSkippedAndReported()
+    {
+        var doc = new Document();
+        doc.Elements.Add(new View3D { Id = new(100) });
+        doc.Visible.Add(new Element { Id = new(1), Document = doc, GeometryError = new Autodesk.Revit.Exceptions.ApplicationException() });
+        doc.Visible.Add(new Element { Id = new(2), Document = doc });
+
+        var result = GeometryExtractor.Extract(doc, new ExtractOptions("m", "Элемент"), CancellationToken.None);
+
+        result.Skipped.Select(s => (s.UniqueId, s.Stage)).ShouldBe([("1", "геометрия")]);
+    }
+
     private static (double, double, double) Origin(XYZ firstElementAt)
     {
         var doc = new Document();

@@ -98,7 +98,8 @@ namespace Autodesk.Revit.DB
         public bool IsHidden(View view) => false;
         public BoundingBox? Box { get; init; }
         public BoundingBox? get_BoundingBox(View view) => Box;
-        public GeometryElement? get_Geometry(Options options) => null;
+        public Exception? GeometryError { get; init; }
+        public GeometryElement? get_Geometry(Options options) => GeometryError is null ? null : throw GeometryError;
         public Parameter? get_Parameter(BuiltInParameter parameter) => null;
     }
     public class FamilyInstance : Element

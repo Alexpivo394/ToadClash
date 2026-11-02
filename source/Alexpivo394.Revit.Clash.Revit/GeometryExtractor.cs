@@ -14,6 +14,9 @@ public static class GeometryExtractor
     /// <summary>Дальше этого расстояния от начала выгрузки, мм, шаг float больше 0,06 мм.</summary>
     private const float FarFromOriginMm = 1_000_000;
 
+    private const string GeometryStage = "геометрия";
+    private const string ParametersStage = "параметры";
+
     private const int ProgressEvery = 500;
     private static readonly TimeSpan ProgressInterval = TimeSpan.FromSeconds(2);
 
@@ -67,21 +70,33 @@ public static class GeometryExtractor
         var parameters = new Dictionary<string, IReadOnlyList<ParameterValue>>(visible.Count, StringComparer.Ordinal);
         var throttle = new ProgressThrottle(ProgressEvery, ProgressInterval);
         var far = 0;
+        var skipped = new List<SkippedElement>();
         var done = 0;
         foreach (var element in visible)
         {
             ct.ThrowIfCancellationRequested();
             Report(ExtractStage.Elements, ++done, visible.Count);
 
-            var mesh = Tessellate(element, geometryOptions, coordinates, origin, options.TriangulationLevelOfDetail);
-            if (mesh.TriangleCount == 0) continue;
+            // Сбой геометрии пропускает элемент целиком (в описи он остаётся), сбой параметров — только параметры.
+            ElementMesh mesh = null!;
+            ElementInfo info = null!;
+            var id = IdValue(element.Id);
+            if (!ElementGuard.TryRun(element.UniqueId, id, GeometryStage, () =>
+                {
+                    mesh = Tessellate(element, geometryOptions, coordinates, origin, options.TriangulationLevelOfDetail);
+                    if (mesh.TriangleCount > 0) info = ReadInfo(element, categoryNames);
+                }, skipped) || mesh.TriangleCount == 0)
+                continue;
 
-            var info = ReadInfo(element, categoryNames);
             var bounds = Aabb.FromPositions(mesh.Positions);
             if (IsFar(bounds)) far++;
             elements.Add(new ElementGeometry(info, mesh, bounds, Fingerprint.Compute(mesh, header)));
-            parameters[info.UniqueId] = parameterReader.Read(element);
+            IReadOnlyList<ParameterValue> values = [];
+            ElementGuard.TryRun(element.UniqueId, id, ParametersStage, () => values = parameterReader.Read(element), skipped);
+            parameters[info.UniqueId] = values;
         }
+
+        ElementGuard.ThrowIfTooMany(skipped, visible.Count);
 
         var all = doc.CollectElements().WhereElementIsNotElementType().OfCategories(categories).ToList();
         var inventory = new List<string>(all.Count);
@@ -95,7 +110,7 @@ public static class GeometryExtractor
         }
 
         var geometry = new ModelGeometry(header with { Complete = true }, elements, inventory);
-        return new ExtractResult(geometry, new ModelParameters(parameters), [], far);
+        return new ExtractResult(geometry, new ModelParameters(parameters), skipped, far);
 
         void Report(ExtractStage stage, int current, int total)
         {
