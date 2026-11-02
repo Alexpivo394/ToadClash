@@ -8,6 +8,9 @@ namespace Alexpivo394.Revit.Clash.Tests.Engine;
 
 public sealed class IncrementalTests
 {
+    [Test]
+    public void AlgorithmVersion_IsPositive() => ClashEngine.AlgorithmVersion.ShouldBeGreaterThan(0);
+
     private static readonly (double, double, double) Zero = (0, 0, 0);
 
     // Стена АР на x 0…1000; трубы ВК заходят в неё на 100 мм (p1) и на 50 мм (p2); p3 стену не задевает.

@@ -17,6 +17,12 @@ namespace Alexpivo394.Revit.Clash.Engine;
 /// </remarks>
 public sealed class ClashEngine(EngineOptions options)
 {
+    /// <summary>
+    ///     Версия алгоритма поиска. Повышать при любой правке точной фазы, фильтра пар, вложения, глубины или допусков.
+    ///     Основа прошлого прогона с другой версией не переиспользуется — это проверяет вызывающий.
+    /// </summary>
+    public const int AlgorithmVersion = 1;
+
     private const int PairsPerBatch = 256;
     private const long MemorySampleInterval = 10_000;
 
