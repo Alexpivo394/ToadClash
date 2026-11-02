@@ -20,6 +20,10 @@ public static class ModelGeometryFile
     private const int FormatVersion = 3;
     private const int MaxElements = 1 << 26;
     private const int MaxMeshValues = 1 << 26;
+    private const int MaxConnections = 4096;
+
+    /// <summary>Deflate сжимает не больше чем в 1032 раза: распакованная сетка не может быть длиннее.</summary>
+    private const long MaxDeflateRatio = 1032;
 
     /// <summary>Записывает модель в поток. Выходной поток может не поддерживать позиционирование.</summary>
     public static void Write(Stream output, ModelGeometry model)
@@ -100,7 +104,7 @@ public static class ModelGeometryFile
             var inventory = reader.ReadStrings(MaxElements);
             return new ModelGeometry(header, elements, inventory);
         }
-        catch (Exception e) when (e is EndOfStreamException or ArgumentException or OverflowException or FormatException)
+        catch (Exception e) when (e is EndOfStreamException or ArgumentException or OverflowException or FormatException or OutOfMemoryException)
         {
             throw new InvalidDataException("Файл геометрии повреждён.", e);
         }
@@ -117,7 +121,7 @@ public static class ModelGeometryFile
             using var reader = BinaryIo.CreateReader(input);
             return ReadPrefix(reader, out _);
         }
-        catch (Exception e) when (e is EndOfStreamException or ArgumentException or OverflowException or FormatException)
+        catch (Exception e) when (e is EndOfStreamException or ArgumentException or OverflowException or FormatException or OutOfMemoryException)
         {
             throw new InvalidDataException("Файл геометрии повреждён.", e);
         }
@@ -158,7 +162,7 @@ public static class ModelGeometryFile
                 .ToArray();
             return new ModelIndex(header, entries, inventory);
         }
-        catch (Exception e) when (e is EndOfStreamException or ArgumentException or OverflowException or FormatException)
+        catch (Exception e) when (e is EndOfStreamException or ArgumentException or OverflowException or FormatException or OutOfMemoryException)
         {
             throw new InvalidDataException("Файл геометрии повреждён.", e);
         }
@@ -182,7 +186,7 @@ public static class ModelGeometryFile
             using var reader = BinaryIo.CreateReader(input);
             return DecompressMesh(reader.ReadExactly(entry.MeshLength));
         }
-        catch (Exception e) when (e is EndOfStreamException or ArgumentException or OverflowException or FormatException)
+        catch (Exception e) when (e is EndOfStreamException or ArgumentException or OverflowException or FormatException or OutOfMemoryException)
         {
             throw new InvalidDataException("Файл геометрии повреждён.", e);
         }
@@ -213,7 +217,7 @@ public static class ModelGeometryFile
     private static TableRow[] ReadTable(BinaryReader reader, int version)
     {
         var count = reader.ReadCount(MaxElements);
-        var table = new TableRow[count];
+        var table = new List<TableRow>(BinaryIo.InitialCapacity(count));
         for (var i = 0; i < count; i++)
         {
             var info = ReadInfo(reader, version);
@@ -223,10 +227,10 @@ public static class ModelGeometryFile
             var offset = reader.ReadInt64();
             var length = reader.ReadInt32();
             var triangles = version >= 3 ? reader.ReadInt32() : -1;
-            table[i] = new TableRow(info, new Aabb(min, max), fingerprint, offset, length, triangles);
+            table.Add(new TableRow(info, new Aabb(min, max), fingerprint, offset, length, triangles));
         }
 
-        return table;
+        return [.. table];
     }
 
     private readonly record struct TableRow(ElementInfo Info, Aabb Bounds, ulong Fingerprint, long Offset, int Length, int TriangleCount);
@@ -254,6 +258,8 @@ public static class ModelGeometryFile
         writer.WriteNullable(info.Type);
         writer.WriteNullable(info.Level);
         writer.WriteNullable(info.Workset);
+        if (info.ConnectedUniqueIds.Count > MaxConnections)
+            throw new ArgumentException($"У элемента {info.UniqueId} больше {MaxConnections} соединений.", nameof(info));
         writer.WriteStrings(info.ConnectedUniqueIds);
         writer.WriteNullable(info.RootComponentUniqueId);
     }
@@ -266,7 +272,7 @@ public static class ModelGeometryFile
         reader.ReadNullableString(),
         reader.ReadNullableString(),
         reader.ReadNullableString(),
-        reader.ReadStrings(MaxElements),
+        reader.ReadStrings(MaxConnections),
         version >= 2 ? reader.ReadNullableString() : null);
 
     private static byte[] CompressMesh(ElementMesh mesh)
@@ -293,10 +299,14 @@ public static class ModelGeometryFile
         using var deflate = new DeflateStream(source, CompressionMode.Decompress);
         using var reader = BinaryIo.CreateReader(deflate);
 
+        var maxBytes = compressed.Length * MaxDeflateRatio + 64;
         var vertexCount = reader.ReadCount(MaxMeshValues / 3);
+        if (vertexCount * 12L > maxBytes) throw new InvalidDataException("Число вершин сетки больше сжатых данных.");
         var positions = new float[vertexCount * 3];
         ReadBlock(reader, positions, sizeof(float));
+        if (!positions.All(float.IsFinite)) throw new InvalidDataException("Координата вершины сетки не число.");
         var indexCount = reader.ReadCount(MaxMeshValues);
+        if (vertexCount * 12L + indexCount * 4L > maxBytes) throw new InvalidDataException("Число индексов сетки больше сжатых данных.");
         var indices = new int[indexCount];
         ReadBlock(reader, indices, sizeof(int));
         return new ElementMesh(positions, indices);

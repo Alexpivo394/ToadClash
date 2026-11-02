@@ -57,7 +57,7 @@ public static class ModelParametersFile
                 throw new InvalidDataException("Неподдерживаемая версия файла параметров.");
 
             var count = reader.ReadCount(MaxCount);
-            var result = new Dictionary<string, IReadOnlyList<ParameterValue>>(count);
+            var result = new Dictionary<string, IReadOnlyList<ParameterValue>>(BinaryIo.InitialCapacity(count));
             for (var i = 0; i < count; i++)
             {
                 var uniqueId = reader.ReadString();
@@ -74,7 +74,7 @@ public static class ModelParametersFile
 
             return new ModelParameters(result);
         }
-        catch (Exception e) when (e is EndOfStreamException or ArgumentException or OverflowException or FormatException)
+        catch (Exception e) when (e is EndOfStreamException or ArgumentException or OverflowException or FormatException or OutOfMemoryException)
         {
             throw new InvalidDataException("Файл параметров повреждён.", e);
         }

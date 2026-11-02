@@ -7,6 +7,14 @@ internal static class BinaryIo
 {
     internal static readonly Encoding Utf8 = new UTF8Encoding(false);
 
+    /// <summary>
+    ///     Наибольшая начальная ёмкость коллекции по счётчику из файла: дальше коллекция растёт по мере чтения, и
+    ///     повреждённый счётчик упирается в конец файла раньше большого выделения.
+    /// </summary>
+    internal const int MaxInitialCapacity = 1 << 16;
+
+    internal static int InitialCapacity(int count) => Math.Min(count, MaxInitialCapacity);
+
     internal static BinaryWriter CreateWriter(Stream stream) => new(stream, Utf8, true);
 
     internal static BinaryReader CreateReader(Stream stream) => new(stream, Utf8, true);
@@ -62,8 +70,8 @@ internal static class BinaryIo
     internal static string[] ReadStrings(this BinaryReader reader, int max)
     {
         var count = reader.ReadCount(max);
-        var values = new string[count];
-        for (var i = 0; i < count; i++) values[i] = reader.ReadString();
-        return values;
+        var values = new List<string>(InitialCapacity(count));
+        for (var i = 0; i < count; i++) values.Add(reader.ReadString());
+        return [.. values];
     }
 }
