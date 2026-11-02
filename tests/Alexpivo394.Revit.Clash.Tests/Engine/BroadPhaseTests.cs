@@ -105,10 +105,10 @@ public sealed class BroadPhaseTests
             TestScenes.Model("ov", "OV", (1000, 2000, 3000), [new("p", "OST_PipeCurves", TestScenes.Box(Vector3.Zero, new Vector3(10)))]),
             TestScenes.Model("ar", "AR", (1005, 2005, 3005), [new("w", "OST_Walls", TestScenes.Box(Vector3.Zero, new Vector3(10)))]));
 
-        scene.OriginX.ShouldBe(1000);
-        scene.OriginY.ShouldBe(2000);
-        scene.OriginZ.ShouldBe(3000);
-        scene.Elements[1].Bounds.Min.ShouldBe(new Vector3(5));
+        // Абсолютные координаты элементов сохраняются, какое бы начало ни выбрала сцена.
+        var origin = new Vector3((float)scene.OriginX, (float)scene.OriginY, (float)scene.OriginZ);
+        (origin + scene.Elements[0].Bounds.Min).ShouldBe(new Vector3(1000, 2000, 3000));
+        (origin + scene.Elements[1].Bounds.Min).ShouldBe(new Vector3(1005, 2005, 3005));
         pairs.Count.ShouldBe(1);
 
         var far = Run(config, out _,

@@ -28,7 +28,8 @@ internal sealed class SceneElement
 }
 
 /// <summary>
-///     Все модели части в одной системе: начало - Origin первой модели, позиции пересчитываются в float относительно него.
+///     Все модели части в одной системе: начало выбирает <see cref="SceneAlignment" /> (центр совмещённых моделей), позиции
+///     пересчитываются в float относительно него. Несовмещённые модели — <see cref="ModelsNotAlignedException" />.
 ///     В сцену попадают только элементы с непустым членством в наборах и хотя бы одним невырожденным треугольником.
 /// </summary>
 public sealed class ClashScene
@@ -76,16 +77,14 @@ public sealed class ClashScene
     /// <summary>Число треугольников элементов сцены.</summary>
     public long TriangleCount { get; }
 
-    /// <summary>Собирает сцену из моделей; начало координат - Origin первой модели.</summary>
+    /// <summary>Собирает сцену из моделей; начало координат не зависит от порядка моделей.</summary>
+    /// <exception cref="ModelsNotAlignedException">Модели части не совмещены.</exception>
     public static ClashScene Build(IReadOnlyList<ModelInput> models, SetMembership membership)
     {
         if (models is null) throw new ArgumentNullException(nameof(models));
         if (membership is null) throw new ArgumentNullException(nameof(membership));
 
-        var header0 = models.Count > 0 ? models[0].Geometry.Header : null;
-        var ox = header0?.OriginX ?? 0;
-        var oy = header0?.OriginY ?? 0;
-        var oz = header0?.OriginZ ?? 0;
+        var (ox, oy, oz) = SceneAlignment.Origin(models);
 
         var elements = new List<SceneElement>();
         var groups = new List<Guid>();
