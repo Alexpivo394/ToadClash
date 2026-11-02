@@ -304,7 +304,7 @@ public static class ModelGeometryFile
         if (vertexCount * 12L > maxBytes) throw new InvalidDataException("Число вершин сетки больше сжатых данных.");
         var positions = new float[vertexCount * 3];
         ReadBlock(reader, positions, sizeof(float));
-        if (!positions.All(float.IsFinite)) throw new InvalidDataException("Координата вершины сетки не число.");
+        if (positions.Any(v => float.IsNaN(v) || float.IsInfinity(v))) throw new InvalidDataException("Координата вершины сетки не число.");
         var indexCount = reader.ReadCount(MaxMeshValues);
         if (vertexCount * 12L + indexCount * 4L > maxBytes) throw new InvalidDataException("Число индексов сетки больше сжатых данных.");
         var indices = new int[indexCount];
