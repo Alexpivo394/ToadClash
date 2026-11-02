@@ -21,12 +21,15 @@ public enum ConditionOperator
 
 /// <summary>
 ///     Условие на свойство элемента. Строки сравниваются без учёта регистра; числа разбираются с точкой или запятой.
+///     Равенство числового параметра числу проверяется по значению, а не по тексту. Общий параметр ищется только по GUID.
 ///     Если свойства нет, <see cref="ConditionOperator.IsEmpty"/>, <see cref="ConditionOperator.NotEquals"/> и
 ///     <see cref="ConditionOperator.NotContains"/> дают true, остальные операторы - false.
 /// </summary>
 /// <param name="Values">Значения для <see cref="ConditionOperator.OneOf"/>; другие операторы берут <paramref name="Value"/>.</param>
 public sealed record Condition(PropertyRef Property, ConditionOperator Operator, string? Value, IReadOnlyList<string>? Values = null)
 {
+    private const double NumberTolerance = 1e-6;
+
     /// <summary>Проверяет, удовлетворяет ли элемент условию.</summary>
     /// <param name="info">Описание элемента.</param>
     /// <param name="parameters">Параметры элемента.</param>
@@ -43,13 +46,13 @@ public sealed record Condition(PropertyRef Property, ConditionOperator Operator,
         {
             ConditionOperator.IsEmpty => isEmpty,
             ConditionOperator.IsNotEmpty => !isEmpty,
-            ConditionOperator.Equals => text is not null && string.Equals(text, expected, StringComparison.OrdinalIgnoreCase),
-            ConditionOperator.NotEquals => text is null || !string.Equals(text, expected, StringComparison.OrdinalIgnoreCase),
+            ConditionOperator.Equals => text is not null && AreEqual(text, number, expected),
+            ConditionOperator.NotEquals => text is null || !AreEqual(text, number, expected),
             ConditionOperator.Contains => text is not null && text.IndexOf(expected, StringComparison.OrdinalIgnoreCase) >= 0,
             ConditionOperator.NotContains => text is null || text.IndexOf(expected, StringComparison.OrdinalIgnoreCase) < 0,
             ConditionOperator.Greater => Compare(text, number) is { } greater && greater > 0,
             ConditionOperator.Less => Compare(text, number) is { } less && less < 0,
-            ConditionOperator.OneOf => text is not null && Values is not null && Values.Any(v => string.Equals(text, v, StringComparison.OrdinalIgnoreCase)),
+            ConditionOperator.OneOf => text is not null && Values is not null && Values.Any(v => AreEqual(text, number, v)),
             _ => false
         };
     }
@@ -73,12 +76,14 @@ public sealed record Condition(PropertyRef Property, ConditionOperator Operator,
         return (text, parameter.Number);
     }
 
+    /// <summary>Общий параметр ищется только по GUID: одноимённый параметр с другим GUID — другой параметр.</summary>
     private static ParameterValue? FindParameter(PropertyRef property, IReadOnlyList<ParameterValue> parameters)
     {
         if (property.SharedGuid is { } guid)
         {
             foreach (var parameter in parameters)
                 if (parameter.SharedGuid == guid) return parameter;
+            return null;
         }
 
         if (string.IsNullOrEmpty(property.ParameterName)) return null;
@@ -86,6 +91,17 @@ public sealed record Condition(PropertyRef Property, ConditionOperator Operator,
             if (string.Equals(parameter.Name, property.ParameterName, StringComparison.OrdinalIgnoreCase)) return parameter;
 
         return null;
+    }
+
+    /// <summary>
+    ///     Число параметра и числовое ожидаемое значение сравниваются с допуском 1e-6·max(1, |ожидаемое|): текст параметра
+    ///     зависит от формата отображения («100 мм»). Иначе — текст без учёта регистра.
+    /// </summary>
+    private static bool AreEqual(string text, double? number, string expected)
+    {
+        if (number is { } actual && TryParse(expected, out var value))
+            return Math.Abs(actual - value) <= NumberTolerance * Math.Max(1, Math.Abs(value));
+        return string.Equals(text, expected, StringComparison.OrdinalIgnoreCase);
     }
 
     private int? Compare(string? text, double? number)

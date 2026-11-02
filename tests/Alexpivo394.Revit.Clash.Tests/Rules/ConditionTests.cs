@@ -107,4 +107,37 @@ public sealed class ConditionTests
 
         new Condition(Param("Size"), ConditionOperator.Less, "11").Matches(Info(), parameters).ShouldBeTrue();
     }
+
+    [Test]
+    public void NumericEquals_IgnoresDisplayFormat()
+    {
+        bool Equal(double number, string text, string expected) =>
+            new Condition(Param("D"), ConditionOperator.Equals, expected).Matches(Info(), [new ParameterValue("D", null, text, number)]);
+
+        Equal(100, "100 мм", "100").ShouldBeTrue();
+        Equal(100, "100 мм", "100.0").ShouldBeTrue();
+        Equal(99.9999999, "100 мм", "100").ShouldBeTrue();
+        Equal(100.5, "101", "101").ShouldBeFalse();
+        new Condition(Param("D"), ConditionOperator.NotEquals, "100,0").Matches(Info(), [new ParameterValue("D", null, "100 мм", 100)]).ShouldBeFalse();
+    }
+
+    [Test]
+    public void NumericOneOf_ByNumber()
+    {
+        var parameters = new[] { new ParameterValue("D", null, "50 мм", 50) };
+
+        new Condition(Param("D"), ConditionOperator.OneOf, null, ["40", "50,0"]).Matches(Info(), parameters).ShouldBeTrue();
+        new Condition(Param("D"), ConditionOperator.OneOf, null, ["40", "60"]).Matches(Info(), parameters).ShouldBeFalse();
+        // Нечисловое ожидаемое значение сравнивается как текст.
+        new Condition(Param("D"), ConditionOperator.OneOf, null, ["50 мм"]).Matches(Info(), parameters).ShouldBeTrue();
+    }
+
+    [Test]
+    public void SharedGuidNotFound_NoFallbackToName()
+    {
+        var parameters = new[] { new ParameterValue("System", null, "value", null) };
+        var condition = new Condition(Param("System", Guid.NewGuid()), ConditionOperator.Equals, "value");
+
+        condition.Matches(Info(), parameters).ShouldBeFalse();
+    }
 }
