@@ -11,7 +11,8 @@ public static class ElementMatcher
     /// <summary>Сохраняет точные UniqueId и предлагает жадные пары по расстоянию центров в общих координатах (мм).</summary>
     /// <remarks>Category/Family/Type сравниваются ordinal. Разница каждого размера строго меньше 1% старого размера;
     /// нулевой размер совпадает только с нулевым. Допуск включителен, ноль разрешён.
-    /// Координаты ограничены ±10¹⁵ мм, размер ячейки не меньше 1 мм. Слишком плотный поиск завершается ошибкой.</remarks>
+    /// Координаты ограничены ±10¹⁵ мм, размер ячейки не меньше 1 мм. Слишком плотный поиск возвращает отчёт без предложений
+    /// (<see cref="IdentityReport.Truncated" />).</remarks>
     public static IdentityReport Compare(ModelGeometry oldModel, ModelGeometry newModel, double centerToleranceMm = 50)
     {
         ArgumentNullException.ThrowIfNull(oldModel);
@@ -64,8 +65,7 @@ public static class ElementMatcher
                     { X = bucket.X + offsetX, Y = bucket.Y + offsetY, Z = bucket.Z + offsetZ }, out var entries)) continue;
                 foreach (var newEntry in entries)
                 {
-                    if (++comparisons > MaximumComparisons)
-                        throw new ArgumentException("Слишком плотные данные identity: превышено 10000000 локальных сравнений. Уменьшите выборку геометрии.");
+                    if (++comparisons > MaximumComparisons) return Truncated();
                     if (!SimilarSize(oldEntry.Width, newEntry.Width) ||
                         !SimilarSize(oldEntry.Height, newEntry.Height) ||
                         !SimilarSize(oldEntry.Depth, newEntry.Depth)) continue;
@@ -74,8 +74,7 @@ public static class ElementMatcher
                     var deltaZ = oldEntry.Z - newEntry.Z;
                     var distance = Math.Sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
                     if (distance > centerToleranceMm) continue;
-                    if (candidates.Count == MaximumCandidates)
-                        throw new ArgumentException("Слишком плотные данные identity: превышено 2000000 кандидатов. Уменьшите выборку геометрии.");
+                    if (candidates.Count == MaximumCandidates) return Truncated();
                     candidates.Add(new(oldEntry.Id, newEntry.Id, distance));
                 }
             }
@@ -99,6 +98,9 @@ public static class ElementMatcher
             matches.Add(new(candidate.OldId, candidate.NewId));
         }
         return new(kept, oldElements.Count - kept - matches.Count, newElements.Count - kept - matches.Count, matches.AsReadOnly());
+
+        // Слишком плотные данные: предложений не даём, а не падаем.
+        IdentityReport Truncated() => new(kept, oldElements.Count - kept, newElements.Count - kept, [], true);
     }
 
     private static bool SimilarSize(double oldSize, double newSize) =>

@@ -140,12 +140,31 @@ public sealed class ElementMatcherTests
     }
 
     [Test]
-    public void DenseAmbiguityFailsExplicitlyInsteadOfGrowingWithoutLimit()
+    public void DenseData_ReturnsTruncatedWithoutMatches()
     {
-        var oldElements = Enumerable.Range(0, 1500).Select(index => Element($"old{index}")).ToArray();
-        var newElements = Enumerable.Range(0, 1500).Select(index => Element($"new{index}")).ToArray();
-        Should.Throw<ArgumentException>(() => ElementMatcher.Compare(Model(oldElements), Model(newElements)))
-            .Message.ShouldContain("кандидатов");
+        // Больше 2·10⁶ кандидатов: пересозданные одинаковые элементы в одной точке.
+        var oldElements = Enumerable.Range(0, 1500).Select(index => Element($"old{index}")).Append(Element("kept")).ToArray();
+        var newElements = Enumerable.Range(0, 1500).Select(index => Element($"new{index}")).Append(Element("kept")).ToArray();
+        var report = ElementMatcher.Compare(Model(oldElements), Model(newElements));
+
+        report.Truncated.ShouldBeTrue();
+        report.FallbackMatches.ShouldBeEmpty();
+        report.Kept.ShouldBe(1);
+        report.Removed.ShouldBe(1500);
+        report.Added.ShouldBe(1500);
+    }
+
+    [Test]
+    public void TooManyComparisons_ReturnsTruncated()
+    {
+        // Больше 10⁷ сравнений, но размеры не совпадают — кандидатов нет.
+        var oldElements = Enumerable.Range(0, 3200).Select(index => Element($"old{index}")).ToArray();
+        var newElements = Enumerable.Range(0, 3200).Select(index => Element($"new{index}", size: 120)).ToArray();
+        var report = ElementMatcher.Compare(Model(oldElements), Model(newElements));
+
+        report.Truncated.ShouldBeTrue();
+        report.Removed.ShouldBe(3200);
+        report.Added.ShouldBe(3200);
     }
 
     [Test]

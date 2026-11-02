@@ -10,4 +10,8 @@ public sealed record IdentityMatch(string OldId, string NewId);
 /// <param name="Removed">Количество старых элементов без пары после fallback, не доказательство удаления из Revit.</param>
 /// <param name="Added">Количество новых элементов без пары после fallback, не доказательство создания в Revit.</param>
 /// <param name="FallbackMatches">Предложения сопоставления в порядке расстояния, затем OldId и NewId ordinal.</param>
-public sealed record IdentityReport(int Kept, int Removed, int Added, IReadOnlyList<IdentityMatch> FallbackMatches);
+/// <param name="Truncated">
+///     Данные слишком плотные для поиска пар (больше 10⁷ сравнений или 2·10⁶ кандидатов): предложений нет, Removed и Added
+///     посчитаны без них.
+/// </param>
+public sealed record IdentityReport(int Kept, int Removed, int Added, IReadOnlyList<IdentityMatch> FallbackMatches, bool Truncated = false);
