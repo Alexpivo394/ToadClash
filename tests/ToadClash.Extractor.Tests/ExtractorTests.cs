@@ -96,6 +96,23 @@ public sealed class ExtractorTests
         Root(new InsulationLiningBase { Id = new(8), Document = doc }).ShouldBeNull();
     }
 
+    [Test]
+    public void Origin_IsInternalOrigin_RegardlessOfElements()
+    {
+        // Начало не зависит от того, какой элемент коллектор вернул первым (A7-04).
+        Origin(new XYZ(100.4, 7, 3)).ShouldBe((0d, 0d, 0d));
+        Origin(new XYZ(-5000, 12, 1)).ShouldBe((0d, 0d, 0d));
+    }
+
+    private static (double, double, double) Origin(XYZ firstElementAt)
+    {
+        var doc = new Document();
+        doc.Elements.Add(new View3D { Id = new(100) });
+        doc.Visible.Add(new Element { Id = new(1), Document = doc, Box = new BoundingBox { Min = firstElementAt, Max = firstElementAt } });
+        var header = GeometryExtractor.Extract(doc, new ExtractOptions("m", "Элемент"), CancellationToken.None).Geometry.Header;
+        return (header.OriginX, header.OriginY, header.OriginZ);
+    }
+
     private static string? Root(Element element) => (string?)typeof(GeometryExtractor)
         .GetMethod("RootComponentUniqueId", BindingFlags.NonPublic | BindingFlags.Static)!
         .Invoke(null, [element]);

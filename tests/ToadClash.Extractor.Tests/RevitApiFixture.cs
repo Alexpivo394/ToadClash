@@ -96,7 +96,8 @@ namespace Autodesk.Revit.DB
         public ElementId LevelId => ElementId.InvalidElementId;
         public ElementId WorksetId => ElementId.InvalidElementId;
         public bool IsHidden(View view) => false;
-        public BoundingBox? get_BoundingBox(View view) => null;
+        public BoundingBox? Box { get; init; }
+        public BoundingBox? get_BoundingBox(View view) => Box;
         public GeometryElement? get_Geometry(Options options) => null;
         public Parameter? get_Parameter(BuiltInParameter parameter) => null;
     }
@@ -130,11 +131,14 @@ namespace Autodesk.Revit.DB
     public sealed class Application { public string VersionNumber => "2022"; }
     public sealed class WorksetTable { public Element? GetWorkset(ElementId id) => null; }
     public sealed class Options { public View? View { get; init; } public bool ComputeReferences { get; init; } }
-    public sealed class XYZ
+    public sealed class XYZ(double x = 0, double y = 0, double z = 0)
     {
         public static XYZ Zero { get; } = new();
-        public static XYZ operator +(XYZ a, XYZ b) => new();
-        public static XYZ operator /(XYZ a, double b) => new();
+        public double X => x;
+        public double Y => y;
+        public double Z => z;
+        public static XYZ operator +(XYZ a, XYZ b) => new(a.X + b.X, a.Y + b.Y, a.Z + b.Z);
+        public static XYZ operator /(XYZ a, double b) => new(a.X / b, a.Y / b, a.Z / b);
     }
     public sealed class Transform
     {
@@ -143,7 +147,7 @@ namespace Autodesk.Revit.DB
         public Transform Multiply(Transform other) => this;
         public XYZ OfPoint(XYZ point) => point;
     }
-    public sealed class BoundingBox { public Transform Transform => Transform.Identity; public XYZ Min => new(); public XYZ Max => new(); }
+    public sealed class BoundingBox { public Transform Transform => Transform.Identity; public XYZ Min { get; init; } = new(); public XYZ Max { get; init; } = new(); }
     public class GeometryObject;
     public sealed class GeometryElement : List<GeometryObject>;
     public sealed class GeometryInstance : GeometryObject
@@ -199,7 +203,8 @@ namespace Alexpivo394.Revit.Clash.Revit
     internal sealed class CoordinateTransform
     {
         public static CoordinateTransform FromDocument(Document doc) => new();
-        public Vector3d RoundedOrigin(XYZ point) => new(0, 0, 0);
+        // Без переноса в общие координаты: тест видит, от какой точки взято начало.
+        public Vector3d RoundedOrigin(XYZ point) => new(point.X, point.Y, point.Z);
         public Vector3d[] ToSharedMillimeters(IList<XYZ> points, Transform transform) => [];
     }
     internal static class ConnectivityReader

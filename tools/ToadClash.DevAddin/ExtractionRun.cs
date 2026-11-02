@@ -22,7 +22,7 @@ public static class ExtractionRun
         var visible = CountVisibleModelElements(document, view);
 
         var clock = Stopwatch.StartNew();
-        var (geometry, parameters) = GeometryExtractor.Extract(document, new ExtractOptions(modelName, view.Name), CancellationToken.None);
+        var (geometry, parameters, _, _) = GeometryExtractor.Extract(document, new ExtractOptions(modelName, view.Name), CancellationToken.None);
         var extractSeconds = clock.Elapsed.TotalSeconds;
 
         ModelSnapshotFiles.Write(snapshotDirectory, geometry, parameters);

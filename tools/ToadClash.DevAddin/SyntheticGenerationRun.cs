@@ -134,7 +134,7 @@ public static class SyntheticGenerationRun
             if (extract)
             {
                 var extractionClock = Stopwatch.StartNew();
-                var (geometry, parameters) = GeometryExtractor.Extract(document, new ExtractOptions(modelKey, view.Name), cancellationToken);
+                var (geometry, parameters, _, _) = GeometryExtractor.Extract(document, new ExtractOptions(modelKey, view.Name), cancellationToken);
                 var snapshot = Path.Combine(directory, modelKey + ".toadclash-" + Guid.NewGuid().ToString("N"));
                 ModelSnapshotFiles.Write(snapshot, geometry, parameters);
                 using var mapping = new StreamWriter(new FileStream(Path.Combine(snapshot, "model-disciplines.json"), FileMode.CreateNew));

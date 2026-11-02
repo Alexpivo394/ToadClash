@@ -11,20 +11,24 @@ public static class GeometryExtractor
 
     private const double FeetToMillimeters = 304.8;
 
+    /// <summary>Дальше этого расстояния от начала выгрузки, мм, шаг float больше 0,06 мм.</summary>
+    private const float FarFromOriginMm = 1_000_000;
+
     private const int ProgressEvery = 500;
     private static readonly TimeSpan ProgressInterval = TimeSpan.FromSeconds(2);
 
     /// <summary>
     ///     Видимые на виде элементы с геометрией + опись всех элементов модели (без видов, типов, элементов без категории).
     ///     Учитываются только элементы модельных встроенных категорий; группы, сборки и связанные модели не выгружаются.
-    ///     Координаты - мм в общей системе документа, относительно начала, округлённого до метра.
+    ///     Координаты - мм в общей системе документа относительно начала выгрузки: внутреннего начала документа в общих
+    ///     координатах, округлённого до метра. Начало не зависит от элементов модели.
     /// </summary>
     /// <param name="doc">Документ; не изменяется.</param>
     /// <param name="options">Ключ модели, имя 3D-вида и детализация триангуляции.</param>
     /// <param name="ct">Отмена между элементами.</param>
     /// <exception cref="ArgumentException">В документе нет 3D-вида с именем <see cref="ExtractOptions.ViewName"/>.</exception>
     /// <exception cref="OperationCanceledException">Выгрузка отменена.</exception>
-    public static (ModelGeometry Geometry, ModelParameters Parameters) Extract(Document doc, ExtractOptions options, CancellationToken ct) =>
+    public static ExtractResult Extract(Document doc, ExtractOptions options, CancellationToken ct) =>
         Extract(doc, options, null, ct);
 
     /// <summary>То же, что <see cref="Extract(Document, ExtractOptions, CancellationToken)" />, с сообщениями о ходе выгрузки.</summary>
@@ -32,7 +36,7 @@ public static class GeometryExtractor
     ///     Ход по этапам: о первом и последнем элементе этапа всегда, о промежуточных — каждые 500 элементов, но не чаще
     ///     раза в 2 с. Вызывается в потоке выгрузки. null — без сообщений.
     /// </param>
-    public static (ModelGeometry Geometry, ModelParameters Parameters) Extract(Document doc, ExtractOptions options, IProgress<ExtractProgress>? progress,
+    public static ExtractResult Extract(Document doc, ExtractOptions options, IProgress<ExtractProgress>? progress,
         CancellationToken ct)
     {
         if (doc is null) throw new ArgumentNullException(nameof(doc));
@@ -45,7 +49,7 @@ public static class GeometryExtractor
         var coordinates = CoordinateTransform.FromDocument(doc);
         var visible = CollectVisible(doc, view, categories);
 
-        var origin = OriginOf(visible, view, coordinates);
+        var origin = coordinates.RoundedOrigin(XYZ.Zero);
         var header = new ModelHeader(
             options.ModelKey,
             doc.PathName,
@@ -62,6 +66,7 @@ public static class GeometryExtractor
         var elements = new List<ElementGeometry>(visible.Count);
         var parameters = new Dictionary<string, IReadOnlyList<ParameterValue>>(visible.Count, StringComparer.Ordinal);
         var throttle = new ProgressThrottle(ProgressEvery, ProgressInterval);
+        var far = 0;
         var done = 0;
         foreach (var element in visible)
         {
@@ -72,7 +77,9 @@ public static class GeometryExtractor
             if (mesh.TriangleCount == 0) continue;
 
             var info = ReadInfo(element, categoryNames);
-            elements.Add(new ElementGeometry(info, mesh, Aabb.FromPositions(mesh.Positions), Fingerprint.Compute(mesh, header)));
+            var bounds = Aabb.FromPositions(mesh.Positions);
+            if (IsFar(bounds)) far++;
+            elements.Add(new ElementGeometry(info, mesh, bounds, Fingerprint.Compute(mesh, header)));
             parameters[info.UniqueId] = parameterReader.Read(element);
         }
 
@@ -88,7 +95,7 @@ public static class GeometryExtractor
         }
 
         var geometry = new ModelGeometry(header with { Complete = true }, elements, inventory);
-        return (geometry, new ModelParameters(parameters));
+        return new ExtractResult(geometry, new ModelParameters(parameters), [], far);
 
         void Report(ExtractStage stage, int current, int total)
         {
@@ -160,16 +167,9 @@ public static class GeometryExtractor
     /// <summary>Элементы-контейнеры: их геометрия повторяет геометрию входящих элементов или другой модели.</summary>
     private static bool IsContainer(Element element) => element is View or Group or AssemblyInstance or RevitLinkInstance;
 
-    private static Vector3d OriginOf(List<Element> elements, View3D view, CoordinateTransform coordinates)
-    {
-        foreach (var element in elements)
-        {
-            if (element.get_BoundingBox(view) is not { } box) continue;
-            return coordinates.RoundedOrigin(box.Transform.OfPoint((box.Min + box.Max) / 2));
-        }
-
-        return coordinates.RoundedOrigin(XYZ.Zero);
-    }
+    private static bool IsFar(Aabb box) =>
+        Math.Max(Math.Max(Math.Abs(box.Min.X), Math.Abs(box.Max.X)), Math.Max(Math.Max(Math.Abs(box.Min.Y), Math.Abs(box.Max.Y)),
+            Math.Max(Math.Abs(box.Min.Z), Math.Abs(box.Max.Z)))) > FarFromOriginMm;
 
     private static ElementMesh Tessellate(Element element, Options options, CoordinateTransform coordinates, Vector3d origin, double levelOfDetail)
     {
