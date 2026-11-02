@@ -41,7 +41,7 @@ DOTNET_ENVIRONMENT=Development Publish__Version=1.0.0-rc.1 dotnet run -c Release
 
 Публикует GitHub Actions (`.github/workflows/PublishRelease.yml`) по тегу версии, например `1.0.0`: собирает пакеты, публикует их на nuget.org и создаёт релиз на GitHub. Ключ nuget.org не хранится: работает trusted publishing (`NuGet/login`, профиль `Alexpivo394`), политику доверия для репозитория настраивают на nuget.org. Каждый push проверяет `.github/workflows/Build.yml`: тесты и сборка выгрузки для Revit 2020 и 2027.
 
-## Служебные инструменты этапа 0
+## Служебные инструменты
 
 ```powershell
 dotnet run -c Release --project tools/ToadClash.Bench -- synth --elements 200000 --models 12 --seed 1 --profile dense --out <каталог>
@@ -67,8 +67,6 @@ DevAddin публикует каждую выгрузку в новом ката
 ```powershell
 dotnet build tools/ToadClash.DevAddin -c Release.R22 -p:DeployAddin=false
 ```
-
-Результаты замеров и оставшиеся ограничения — в `docs/superpowers/reports/`.
 
 Сопоставление двух выгрузок одной модели:
 

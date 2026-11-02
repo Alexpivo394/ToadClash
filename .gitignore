@@ -6,3 +6,10 @@ output/
 .idea/
 *.user
 TestResults/
+
+# Рабочие файлы разработки: в репозиторий не попадают
+AGENTS.md
+CLAUDE.md
+.claude/
+docs/superpowers/
+docs/audits/
