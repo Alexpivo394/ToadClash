@@ -15,9 +15,14 @@
         <PackageTags>revit;autodesk;clash;geometry</PackageTags>
     </PropertyGroup>
 
-    <!-- Пакет на каждый год Revit: {год}.{версия ядра}, как у Alexpivo394.Revit.Export -->
+    <!--
+        Пакет на каждый год Revit: {год}.{major}.{minor} версии ядра с её суффиксом. Ядро 1.0.0 → 2027.1.0,
+        1.0.0-rc.1 → 2027.1.0-rc.1. Правка экстрактора поэтому требует новой минорной версии ядра.
+    -->
     <PropertyGroup Condition="'$(ClashVersion)' != ''">
-        <Version>$(RevitVersion).$(ClashVersion)</Version>
+        <ClashVersionCore>$(ClashVersion.Split('-')[0])</ClashVersionCore>
+        <ClashVersionSuffix Condition="$(ClashVersion.Contains('-'))">$(ClashVersion.Substring($(ClashVersion.IndexOf('-'))))</ClashVersionSuffix>
+        <Version>$(RevitVersion).$([System.Version]::Parse($(ClashVersionCore)).Major).$([System.Version]::Parse($(ClashVersionCore)).Minor)$(ClashVersionSuffix)</Version>
     </PropertyGroup>
 
     <ItemGroup>
