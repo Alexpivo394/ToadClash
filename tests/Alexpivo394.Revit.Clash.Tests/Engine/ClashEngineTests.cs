@@ -386,4 +386,27 @@ public sealed class ClashEngineTests
 
         RunPair(pipe, tray, tolerance).Hits.ShouldBeEmpty();
     }
+
+    [Test]
+    public void Result_SameForOneAndManyThreads()
+    {
+        var random = new Random(394);
+        TestScenes.Item Item(string id, string category) =>
+            new(id, category, Cube(random.Next(0, 40000), random.Next(0, 40000), random.Next(0, 6000), random.Next(300, 2500)));
+        ModelInput[] models =
+        [
+            TestScenes.Model("ov", "OV", (1924000, 1490000, 142000), Enumerable.Range(0, 400).Select(i => Item($"p{i}", "OST_PipeCurves"))),
+            TestScenes.Model("ar", "AR", (1924000, 1490000, 142000), Enumerable.Range(0, 300).Select(i => Item($"w{i}", "OST_Walls"))),
+            TestScenes.Model("ar2", "AR", (1924000, 1490000, 142000), Enumerable.Range(0, 300).Select(i => Item($"x{i}", "OST_Walls")))
+        ];
+
+        var single = new ClashEngine(new EngineOptions(1)).Run(models, Config(), CancellationToken.None).Hits;
+        var parallel = new ClashEngine(new EngineOptions(8)).Run(models, Config(), CancellationToken.None).Hits;
+
+        single.Count.ShouldBeGreaterThan(100);
+        parallel.Select(Key).ShouldBe(single.Select(Key));
+
+        static string Key(ClashHit hit) =>
+            $"{hit.A}|{hit.B}|{hit.PointX:R}|{hit.PointY:R}|{hit.PointZ:R}|{hit.DepthMm:R}|{string.Join(",", hit.Checks)}";
+    }
 }
