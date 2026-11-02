@@ -35,4 +35,18 @@ public sealed class ConfigurationJsonTests
         restored.Matrix[0].ShouldBe(config.Matrix[0]);
         restored.Exclusions[0].ShouldBe(config.Exclusions[0]);
     }
+
+    [Test]
+    [Arguments("""{"groups":null,"sets":[],"matrix":[],"exclusions":[]}""", "groups")]
+    [Arguments("""{"groups":[null],"sets":[],"matrix":[],"exclusions":[]}""", "groups")]
+    [Arguments("""{"groups":[],"sets":null,"matrix":[],"exclusions":[]}""", "sets")]
+    [Arguments("""{"groups":[],"sets":[],"matrix":null,"exclusions":[]}""", "matrix")]
+    [Arguments("""{"groups":[],"sets":[],"matrix":[],"exclusions":null}""", "exclusions")]
+    [Arguments("""{"groups":[],"sets":[{"id":"00000000-0000-0000-0000-000000000001","groupId":"00000000-0000-0000-0000-000000000002","name":"s","anyOf":null}],"matrix":[],"exclusions":[]}""", "anyOf")]
+    [Arguments("""{"groups":[],"sets":[{"id":"00000000-0000-0000-0000-000000000001","groupId":"00000000-0000-0000-0000-000000000002","name":"s","anyOf":[{"all":null}]}],"matrix":[],"exclusions":[]}""", "all")]
+    [Arguments("""{"groups":[],"sets":[{"id":"00000000-0000-0000-0000-000000000001","groupId":"00000000-0000-0000-0000-000000000002","name":"s","anyOf":[{"all":[{"property":null,"operator":"isEmpty"}]}]}],"matrix":[],"exclusions":[]}""", "property")]
+    [Arguments("""{"sets":null,"matrix":[],"exclusions":[]}""", "sets")]
+    [Arguments("""{"sets":[{"id":"00000000-0000-0000-0000-000000000001","discipline":"AR","name":"s","anyOf":null}],"matrix":[],"exclusions":[]}""", "anyOf")]
+    public void NullLists_JsonException(string json, string list) =>
+        Should.Throw<System.Text.Json.JsonException>(() => ConfigurationJson.Deserialize(json)).Message.ShouldContain($"«{list}»");
 }

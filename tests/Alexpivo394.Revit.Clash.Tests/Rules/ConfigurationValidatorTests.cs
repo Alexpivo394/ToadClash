@@ -85,4 +85,25 @@ public sealed class ConfigurationValidatorTests
 
         Problems([walls], exclusions: [new SetPairExclusion(walls.Id, Guid.NewGuid())]).ShouldHaveSingleItem().ShouldContain("исключени");
     }
+
+    [Test]
+    public void DuplicateGroupIds_Problem()
+    {
+        var id = Guid.NewGuid();
+        var config = new ClashConfiguration([new SetGroup(id, "АР", GroupSource.OfDiscipline("АР")), new SetGroup(id, "ОВ", GroupSource.OfDiscipline("ОВ"))], [], [], []);
+
+        ConfigurationValidator.Problems(config, Disciplines, []).ShouldContain("Две группы с одинаковым Id — пересоздайте одну из них");
+    }
+
+    [Test]
+    public void DuplicateSetIds_Problem()
+    {
+        var group = Guid.NewGuid();
+        var id = Guid.NewGuid();
+        ConditionGroup[] all = [new ConditionGroup([Cond(PropertyKind.Category, ConditionOperator.IsNotEmpty, null)])];
+        var config = new ClashConfiguration([new SetGroup(group, "АР", GroupSource.OfDiscipline("АР"))],
+            [new SelectionSet(id, group, "Стены", all), new SelectionSet(id, group, "Двери", all)], [], []);
+
+        ConfigurationValidator.Problems(config, Disciplines, []).ShouldContain("Два набора с одинаковым Id: «Стены» и «Двери»");
+    }
 }

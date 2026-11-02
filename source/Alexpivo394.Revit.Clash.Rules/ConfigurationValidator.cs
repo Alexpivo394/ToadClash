@@ -23,7 +23,12 @@ public static class ConfigurationValidator
         var known = new HashSet<string>(disciplines, Text);
         var models = new HashSet<string>(modelKeys, StringComparer.Ordinal);
         var problems = new List<string>();
-        var groups = config.Groups.ToDictionary(g => g.Id);
+        if (config.Groups.GroupBy(g => g.Id).Any(g => g.Count() > 1)) problems.Add("Две группы с одинаковым Id — пересоздайте одну из них");
+        foreach (var duplicate in config.Sets.GroupBy(s => s.Id).Where(g => g.Count() > 1))
+            problems.Add($"Два набора с одинаковым Id: «{duplicate.First().Name}» и «{duplicate.Skip(1).First().Name}»");
+
+        // При дублях Id остальные проверки идут по первой группе с этим Id.
+        var groups = config.Groups.GroupBy(g => g.Id).ToDictionary(g => g.Key, g => g.First());
 
         foreach (var group in config.Groups)
         {
