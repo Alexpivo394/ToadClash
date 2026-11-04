@@ -19,7 +19,10 @@ public enum PropertyKind
     Workset,
 
     /// <summary>Параметр элемента.</summary>
-    Parameter
+    Parameter,
+
+    /// <summary>Модель (файл): значение — ключ модели <see cref="Geometry.ModelHeader.ModelKey"/>. Нужен ключ модели при проверке.</summary>
+    Model
 }
 
 /// <summary>

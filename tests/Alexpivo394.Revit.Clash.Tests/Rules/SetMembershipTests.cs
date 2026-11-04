@@ -23,6 +23,36 @@ public sealed class SetMembershipTests
     private static ClashConfiguration Config(params DisciplineSet[] sets) => ConfigurationDefaults.FromDisciplines(sets, [], []);
 
     [Test]
+    public void ModelCondition_SelectsElementsOfOneFile()
+    {
+        var model = new Condition(new PropertyRef(PropertyKind.Model), ConditionOperator.Equals, "m2");
+        var set = new DisciplineSet(Guid.NewGuid(), "AR", "Second file walls", [new ConditionGroup([Cat("OST_Walls"), model])]);
+        var others = new DisciplineSet(Guid.NewGuid(), "AR", "Not second file", [
+            new ConditionGroup([new Condition(new PropertyRef(PropertyKind.Model), ConditionOperator.NotEquals, "M2")])]);
+
+        var membership = SetMembership.Evaluate(Config(set, others),
+            [Model("m1", "AR", Element("a", "OST_Walls")), Model("m2", "AR", Element("b", "OST_Walls"))]);
+
+        membership.SetsOf("m1", "a").ShouldBe([others.Id]);
+        membership.SetsOf("m2", "b").ShouldBe([set.Id]); // ключ модели без учёта регистра, как любые строки условий
+    }
+
+    [Test]
+    public void ModelCondition_CountsAndValues()
+    {
+        var model = new Condition(new PropertyRef(PropertyKind.Model), ConditionOperator.OneOf, null, ["m2"]);
+        var set = new DisciplineSet(Guid.NewGuid(), "AR", "S", [new ConditionGroup([model])]);
+        var config = Config(set);
+        var inputs = new[] { Model("m1", "AR", Element("a", "OST_Walls")), Model("m2", "AR", Element("b", "OST_Walls"), Element("c", "OST_Doors")) }
+            .Select(m => m.ToElements()).ToArray();
+
+        SetPreview.Count(config, set.Id, inputs).Matched.ShouldBe(2);
+        PropertyValues.Count(config, config.Sets[0].GroupId, new PropertyRef(PropertyKind.Model), inputs).ShouldBe([new ValueCount("m2", 2), new ValueCount("m1", 1)]);
+        new Condition(new PropertyRef(PropertyKind.Model), ConditionOperator.Equals, "m2")
+            .Matches(new ElementInfo("x", 1, "OST_Walls", null, null, null, null, []), []).ShouldBeFalse(); // без ключа модели — свойства нет
+    }
+
+    [Test]
     public void Set_AnyOfGroups_Or()
     {
         var set = new DisciplineSet(Guid.NewGuid(), "OV", "Pipes or ducts", [

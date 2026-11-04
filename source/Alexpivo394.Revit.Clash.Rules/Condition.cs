@@ -33,12 +33,18 @@ public sealed record Condition(PropertyRef Property, ConditionOperator Operator,
     /// <summary>Проверяет, удовлетворяет ли элемент условию.</summary>
     /// <param name="info">Описание элемента.</param>
     /// <param name="parameters">Параметры элемента.</param>
-    public bool Matches(ElementInfo info, IReadOnlyList<ParameterValue> parameters)
+    public bool Matches(ElementInfo info, IReadOnlyList<ParameterValue> parameters) => Matches(info, parameters, null);
+
+    /// <summary>Проверяет, удовлетворяет ли элемент модели <paramref name="modelKey"/> условию.</summary>
+    /// <param name="info">Описание элемента.</param>
+    /// <param name="parameters">Параметры элемента.</param>
+    /// <param name="modelKey">Ключ модели элемента для <see cref="PropertyKind.Model"/>; без него у элемента нет этого свойства.</param>
+    public bool Matches(ElementInfo info, IReadOnlyList<ParameterValue> parameters, string? modelKey)
     {
         if (info is null) throw new ArgumentNullException(nameof(info));
         if (parameters is null) throw new ArgumentNullException(nameof(parameters));
 
-        var (text, number) = Resolve(Property, info, parameters);
+        var (text, number) = Resolve(Property, info, parameters, modelKey);
         var isEmpty = string.IsNullOrWhiteSpace(text) && number is null;
         var expected = Value ?? "";
 
@@ -58,7 +64,8 @@ public sealed record Condition(PropertyRef Property, ConditionOperator Operator,
     }
 
     /// <summary>Значение свойства элемента: текст и, если есть, число.</summary>
-    internal static (string? Text, double? Number) Resolve(PropertyRef property, ElementInfo info, IReadOnlyList<ParameterValue> parameters)
+    internal static (string? Text, double? Number) Resolve(PropertyRef property, ElementInfo info, IReadOnlyList<ParameterValue> parameters,
+        string? modelKey)
     {
         switch (property.Kind)
         {
@@ -67,6 +74,7 @@ public sealed record Condition(PropertyRef Property, ConditionOperator Operator,
             case PropertyKind.Type: return (info.Type, null);
             case PropertyKind.Level: return (info.Level, null);
             case PropertyKind.Workset: return (info.Workset, null);
+            case PropertyKind.Model: return (modelKey, null);
         }
 
         var parameter = FindParameter(property, parameters);

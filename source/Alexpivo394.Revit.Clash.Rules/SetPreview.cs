@@ -35,7 +35,7 @@ public static class SetPreview
                 var any = false;
                 for (var i = 0; i < set.AnyOf.Count; i++)
                 {
-                    if (!SetMembership.MatchesAll(set.AnyOf[i], info, parameters)) continue;
+                    if (!SetMembership.MatchesAll(set.AnyOf[i], info, parameters, model.ModelKey)) continue;
                     byAnyOf[i]++;
                     any = true;
                 }
@@ -62,7 +62,7 @@ public static class SetPreview
         foreach (var (model, info) in PropertyValues.Elements(config, groupId, models))
         {
             var parameters = model.Parameters.For(info.UniqueId);
-            if (sets.Any(s => SetMembership.Matches(s, info, parameters))) continue;
+            if (sets.Any(s => SetMembership.Matches(s, info, parameters, model.ModelKey))) continue;
             count++;
             byCategory[info.Category] = byCategory.TryGetValue(info.Category, out var n) ? n + 1 : 1;
         }

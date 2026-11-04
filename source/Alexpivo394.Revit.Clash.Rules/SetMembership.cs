@@ -40,7 +40,7 @@ public sealed class SetMembership
                 List<Guid>? groups = null;
                 foreach (var set in sets)
                 {
-                    if (!Matches(set, info, parameters)) continue;
+                    if (!Matches(set, info, parameters, model.ModelKey)) continue;
                     (matched ??= []).Add(set.Id);
                     groups ??= [];
                     if (!groups.Contains(set.GroupId)) groups.Add(set.GroupId);
@@ -68,18 +68,18 @@ public sealed class SetMembership
     public IReadOnlyList<Guid> GroupsOf(string modelKey, string uniqueId) =>
         _sets.TryGetValue((modelKey, uniqueId), out var entry) ? entry.Groups : NoSets;
 
-    internal static bool Matches(SelectionSet set, ElementInfo info, IReadOnlyList<ParameterValue> parameters)
+    internal static bool Matches(SelectionSet set, ElementInfo info, IReadOnlyList<ParameterValue> parameters, string modelKey)
     {
         foreach (var group in set.AnyOf)
-            if (MatchesAll(group, info, parameters)) return true;
+            if (MatchesAll(group, info, parameters, modelKey)) return true;
 
         return false;
     }
 
-    internal static bool MatchesAll(ConditionGroup group, ElementInfo info, IReadOnlyList<ParameterValue> parameters)
+    internal static bool MatchesAll(ConditionGroup group, ElementInfo info, IReadOnlyList<ParameterValue> parameters, string modelKey)
     {
         foreach (var condition in group.All)
-            if (!condition.Matches(info, parameters)) return false;
+            if (!condition.Matches(info, parameters, modelKey)) return false;
 
         return true;
     }

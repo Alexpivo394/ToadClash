@@ -17,7 +17,7 @@ public static class PropertyValues
         var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var (model, info) in Elements(config, groupId, models))
         {
-            var (text, _) = Condition.Resolve(property, info, model.Parameters.For(info.UniqueId));
+            var (text, _) = Condition.Resolve(property, info, model.Parameters.For(info.UniqueId), model.ModelKey);
             if (string.IsNullOrWhiteSpace(text)) continue;
             counts[text!] = counts.TryGetValue(text!, out var n) ? n + 1 : 1;
         }
