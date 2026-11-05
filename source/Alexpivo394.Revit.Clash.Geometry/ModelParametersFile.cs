@@ -11,6 +11,9 @@ public static class ModelParametersFile
     private const int FormatVersion = 1;
     private const int MaxCount = 1 << 26;
 
+    /// <summary>Наибольшее число общих значений: если почти все значения разные, словарь не растёт без пользы.</summary>
+    private const int MaxPooled = 1 << 20;
+
     /// <summary>Записывает параметры в поток.</summary>
     public static void Write(Stream s, ModelParameters p)
     {
@@ -58,6 +61,10 @@ public static class ModelParametersFile
 
             var count = reader.ReadCount(MaxCount);
             var result = new Dictionary<string, IReadOnlyList<ParameterValue>>(BinaryIo.InitialCapacity(count));
+            // Значения элементов повторяются: у моделей ~1,8 млн значений и ~70 тыс. разных. Общие экземпляры
+            // уменьшают память на чтение примерно в 10 раз. Значения неизменяемы, поэтому делить их безопасно.
+            var names = new Dictionary<string, string>(StringComparer.Ordinal);
+            var pool = new Dictionary<ParameterValue, ParameterValue>();
             for (var i = 0; i < count; i++)
             {
                 var uniqueId = reader.ReadString();
@@ -66,15 +73,23 @@ public static class ModelParametersFile
                 for (var j = 0; j < valueCount; j++)
                 {
                     var name = reader.ReadString();
-                    values.Add(new ParameterValue(name, reader.ReadNullableGuid(), reader.ReadNullableString(), reader.ReadNullableDouble()));
+                    if (names.TryGetValue(name, out var known)) name = known;
+                    else if (names.Count < MaxPooled) names.Add(name, name);
+
+                    var value = new ParameterValue(name, reader.ReadNullableGuid(), reader.ReadNullableString(), reader.ReadNullableDouble());
+                    if (pool.TryGetValue(value, out var shared)) value = shared;
+                    else if (pool.Count < MaxPooled) pool.Add(value, value);
+                    values.Add(value);
                 }
 
+                values.TrimExcess();
                 result[uniqueId] = values;
             }
 
             return new ModelParameters(result);
         }
-        catch (Exception e) when (e is EndOfStreamException or ArgumentException or OverflowException or FormatException or OutOfMemoryException)
+        // Нехватка памяти — не повреждение файла: её не переименовываем, иначе исправный слепок отклоняется навсегда.
+        catch (Exception e) when (e is EndOfStreamException or ArgumentException or OverflowException or FormatException)
         {
             throw new InvalidDataException("Файл параметров повреждён.", e);
         }
