@@ -54,6 +54,7 @@ public static class ConfigurationJson
         foreach (var set in NotNull(config.Sets, "sets")) CheckConditions(set.AnyOf);
         NotNull(config.Matrix, "matrix");
         NotNull(config.Exclusions, "exclusions");
+        NotNull(config.GroupExclusions, "groupExclusions");
         return config;
     }
 

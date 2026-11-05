@@ -18,7 +18,7 @@ internal sealed class PairFilter
         if (config is null) throw new ArgumentNullException(nameof(config));
         _ignoreConnected = config.IgnoreConnectedMep;
 
-        foreach (var e in config.Exclusions) _exclusions.Add(Normalize(e.SetA, e.SetB));
+        foreach (var e in config.ExcludedSetPairs()) _exclusions.Add(Normalize(e.SetA, e.SetB));
 
         _groupCount = scene.Groups.Count;
         _enabled = new bool[_groupCount * _groupCount];

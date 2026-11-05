@@ -34,6 +34,24 @@ public sealed class ConfigurationJsonTests
         restored.Sets[0].AnyOf[0].All[1].ShouldBe(config.Sets[0].AnyOf[0].All[1]);
         restored.Matrix[0].ShouldBe(config.Matrix[0]);
         restored.Exclusions[0].ShouldBe(config.Exclusions[0]);
+        restored.GroupExclusions.ShouldBeEmpty();
+    }
+
+    [Test]
+    public void Json_GroupExclusions_RoundTripAndOptional()
+    {
+        var group = ConfigurationDefaults.DisciplineGroupId("AR");
+        var set = Guid.NewGuid();
+        var config = new ClashConfiguration([ConfigurationDefaults.DisciplineGroup("AR")], [], [], []) { GroupExclusions = [new SetGroupExclusion(set, group)] };
+
+        var json = ConfigurationJson.Serialize(config);
+
+        json.ShouldContain("\"groupExclusions\"");
+        ConfigurationJson.Deserialize(json).GroupExclusions.ShouldBe([new SetGroupExclusion(set, group)]);
+        // Конфигурация, сохранённая до появления исключений с группой, читается с пустым списком.
+        ConfigurationJson.Deserialize("""{"groups":[],"sets":[],"matrix":[],"exclusions":[]}""").GroupExclusions.ShouldBeEmpty();
+        Should.Throw<System.Text.Json.JsonException>(() =>
+            ConfigurationJson.Deserialize("""{"groups":[],"sets":[],"matrix":[],"exclusions":[],"groupExclusions":null}"""));
     }
 
     [Test]

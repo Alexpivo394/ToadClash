@@ -92,6 +92,8 @@ public static class ConfigurationValidator
         var ids = config.Sets.Select(s => s.Id).ToHashSet();
         foreach (var exclusion in config.Exclusions.Where(e => !ids.Contains(e.SetA) || !ids.Contains(e.SetB)))
             problems.Add("Одно из исключений ссылается на удалённый набор");
+        foreach (var exclusion in config.GroupExclusions.Where(e => !ids.Contains(e.SetId) || !groups.ContainsKey(e.GroupId)))
+            problems.Add("Одно из исключений с группой ссылается на удалённый набор или группу");
 
         return problems;
     }

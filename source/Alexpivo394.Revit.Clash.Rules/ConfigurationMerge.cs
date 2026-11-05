@@ -1,7 +1,7 @@
 namespace Alexpivo394.Revit.Clash.Rules;
 
 /// <summary>Элемент конфигурации, который изменили оба пользователя по-разному.</summary>
-/// <param name="Key">Ключ элемента: <c>group:…</c>, <c>set:…</c>, <c>cell:…|…</c>, <c>exclusion:…|…</c>, <c>flag:ignoreConnectedMep</c>.</param>
+/// <param name="Key">Ключ элемента: <c>group:…</c>, <c>set:…</c>, <c>cell:…|…</c>, <c>exclusion:…|…</c>, <c>groupExclusion:набор|группа</c>, <c>flag:ignoreConnectedMep</c>.</param>
 /// <param name="Label">Что это, для пользователя: «набор «Стены» (АР)».</param>
 /// <param name="Kind"><c>group</c>, <c>set</c>, <c>cell</c>, <c>exclusion</c> или <c>flag</c>.</param>
 public sealed record MergeConflict(string Key, string Label, string Kind);
@@ -38,6 +38,9 @@ public static class ConfigurationMerge
             c => CellLabel(c, theirs.Groups, GroupName), "cell", keep, conflicts);
         var exclusions = Items(@base.Exclusions, theirs.Exclusions, mine.Exclusions, e => PairKey("exclusion", e.SetA, e.SetB),
             e => $"исключение {SetLabel(e.SetA)} × {SetLabel(e.SetB)}", "exclusion", keep, conflicts);
+        var groupExclusions = Items(@base.GroupExclusions, theirs.GroupExclusions, mine.GroupExclusions,
+            e => $"groupExclusion:{e.SetId:N}|{e.GroupId:N}", e => $"исключение {SetLabel(e.SetId)} × вся группа «{GroupName(e.GroupId)}»", "exclusion",
+            keep, conflicts);
 
         var flag = theirs.IgnoreConnectedMep;
         if (mine.IgnoreConnectedMep != @base.IgnoreConnectedMep && mine.IgnoreConnectedMep != theirs.IgnoreConnectedMep)
@@ -48,7 +51,9 @@ public static class ConfigurationMerge
 
         var ids = sets.Select(s => s.Id).ToHashSet();
         exclusions = exclusions.Where(e => ids.Contains(e.SetA) && ids.Contains(e.SetB)).ToList();
-        return new MergeResult(new ClashConfiguration(groups, sets, cells, exclusions, flag), conflicts);
+        var groupIds = groups.Select(g => g.Id).ToHashSet();
+        groupExclusions = groupExclusions.Where(e => ids.Contains(e.SetId) && groupIds.Contains(e.GroupId)).ToList();
+        return new MergeResult(new ClashConfiguration(groups, sets, cells, exclusions, flag) { GroupExclusions = groupExclusions }, conflicts);
     }
 
     // Группы в подписи — в порядке матрицы, как их видит пользователь.

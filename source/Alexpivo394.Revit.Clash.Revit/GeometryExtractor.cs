@@ -148,8 +148,10 @@ public static class GeometryExtractor
         void AddBuiltIn(Category category)
         {
             var id = IdValue(category.Id);
-            if (id >= 0 || !Enum.IsDefined(typeof(BuiltInCategory), (int)id)) return;
+            if (id >= 0) return;
+            // Значение — само перечисление: с Revit 2024 его базовый тип long, до того — int, а IsDefined требует точный тип.
             var builtIn = (BuiltInCategory)id;
+            if (!Enum.IsDefined(typeof(BuiltInCategory), builtIn)) return;
             names[builtIn] = builtIn.ToString();
         }
     }

@@ -70,6 +70,36 @@ public sealed class PairFilterTests
     }
 
     [Test]
+    public void ExcludedSetAgainstGroup_NoCandidates()
+    {
+        // Набор × вся группа действует и на наборы группы, добавленные после исключения.
+        var wallSet2 = TestScenes.CategorySet("AR", "OST_Walls");
+        var config = Config() with
+        {
+            Sets = [PipeSet, WallSet, wallSet2],
+            GroupExclusions = [new SetGroupExclusion(PipeSet.Id, ConfigurationDefaults.DisciplineGroupId("AR"))]
+        };
+        var (scene, filter) = Setup(config, PipeAndWall());
+
+        BroadPhase.Find(scene, config, filter, 2).ShouldBeEmpty();
+    }
+
+    [Test]
+    public void ExcludedSetAgainstGroup_OtherSetOfElementStillChecked()
+    {
+        // Как у исключения наборов: пара снимается, только если исключено каждое сочетание её наборов.
+        var pipeSet2 = TestScenes.CategorySet("OV", "OST_PipeCurves");
+        var config = Config() with
+        {
+            Sets = [PipeSet, pipeSet2, WallSet],
+            GroupExclusions = [new SetGroupExclusion(PipeSet.Id, ConfigurationDefaults.DisciplineGroupId("AR"))]
+        };
+        var (scene, filter) = Setup(config, PipeAndWall());
+
+        BroadPhase.Find(scene, config, filter, 2).Count.ShouldBe(1);
+    }
+
+    [Test]
     public void ConnectedMep_Skipped()
     {
         var config = Config() with { Matrix = [TestScenes.Cell("OV", "OV", true)] };

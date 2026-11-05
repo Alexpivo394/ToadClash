@@ -87,6 +87,20 @@ public sealed class ConfigurationValidatorTests
     }
 
     [Test]
+    public void Problems_GroupExclusionOfMissingSetOrGroup()
+    {
+        var walls = Set("АР", "Стены");
+        var config = ConfigurationDefaults.FromDisciplines([walls], [], []);
+
+        ConfigurationValidator.Problems(config with { GroupExclusions = [new SetGroupExclusion(walls.Id, config.Groups[0].Id)] }, Disciplines, [])
+            .ShouldBeEmpty();
+        ConfigurationValidator.Problems(config with { GroupExclusions = [new SetGroupExclusion(walls.Id, Guid.NewGuid())] }, Disciplines, [])
+            .ShouldHaveSingleItem().ShouldContain("исключени");
+        ConfigurationValidator.Problems(config with { GroupExclusions = [new SetGroupExclusion(Guid.NewGuid(), config.Groups[0].Id)] }, Disciplines, [])
+            .ShouldHaveSingleItem().ShouldContain("исключени");
+    }
+
+    [Test]
     public void DuplicateGroupIds_Problem()
     {
         var id = Guid.NewGuid();

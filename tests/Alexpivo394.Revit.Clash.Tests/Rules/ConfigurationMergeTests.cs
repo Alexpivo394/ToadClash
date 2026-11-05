@@ -98,6 +98,24 @@ public sealed class ConfigurationMergeTests
     }
 
     [Test]
+    public void Merge_GroupExclusions()
+    {
+        var theirs = Base() with { GroupExclusions = [new SetGroupExclusion(Walls.Id, Ov.Id)] };
+        var mine = Base() with { GroupExclusions = [new SetGroupExclusion(Ducts.Id, Ar.Id)] };
+
+        var result = ConfigurationMerge.Merge(Base(), theirs, mine);
+
+        result.Conflicts.ShouldBeEmpty();
+        result.Merged.GroupExclusions.ShouldBe([new SetGroupExclusion(Walls.Id, Ov.Id), new SetGroupExclusion(Ducts.Id, Ar.Id)]);
+
+        // Удалённый набор и удалённая группа уносят свои исключения.
+        var removed = ConfigurationMerge.Merge(theirs, theirs, theirs with { Sets = [Doors, Ducts] }).Merged;
+        removed.GroupExclusions.ShouldBeEmpty();
+        var withoutGroup = ConfigurationMerge.Merge(mine, mine, mine with { Groups = [Ov] }).Merged;
+        withoutGroup.GroupExclusions.ShouldBeEmpty();
+    }
+
+    [Test]
     public void Merge_CellsAndFlag()
     {
         var theirs = Base() with { Matrix = [new MatrixCell(Ar.Id, Ov.Id, true, 50)] };
