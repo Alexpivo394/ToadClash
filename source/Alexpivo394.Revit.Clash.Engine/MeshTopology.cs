@@ -18,9 +18,16 @@ internal static class MeshTopology
     ///     Возвращает замкнутость сетки и индексы с внешней ориентацией; входной массив не меняется,
     ///     при перевороте возвращается копия.
     /// </summary>
-    public static int[] Orient(float[] positions, int[] indices, out bool closed)
+    public static int[] Orient(float[] positions, int[] indices, out bool closed) => Orient(positions, indices, out closed, out _);
+
+    /// <summary>
+    ///     То же и номер оболочки каждого треугольника (0, 1, …) у замкнутой сетки; у незамкнутой - null. Каждая
+    ///     оболочка - отдельное замкнутое тело, тела элемента могут касаться и перекрываться.
+    /// </summary>
+    public static int[] Orient(float[] positions, int[] indices, out bool closed, out int[]? shells)
     {
         closed = false;
+        shells = null;
         if (indices.Length == 0) return indices;
 
         var ids = Weld(positions, out _);
@@ -55,6 +62,15 @@ internal static class MeshTopology
             var b = Vec3d.At(positions, indices[t * 3 + 1]) - r;
             var c = Vec3d.At(positions, indices[t * 3 + 2]) - r;
             volume[root] += Vec3d.Dot(a, Vec3d.Cross(b, c));
+        }
+
+        var numbers = new Dictionary<int, int>();
+        shells = new int[triangleCount];
+        for (var t = 0; t < triangleCount; t++)
+        {
+            var root = Find(parent, t);
+            if (!numbers.TryGetValue(root, out var number)) numbers[root] = number = numbers.Count;
+            shells[t] = number;
         }
 
         int[]? oriented = null;

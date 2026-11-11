@@ -36,10 +36,18 @@ internal static class TriangleIntersection
     public static bool Intersect(
         in Vec3d a0, in Vec3d a1, in Vec3d a2,
         in Vec3d b0, in Vec3d b1, in Vec3d b2,
-        out Vec3d p, out Vec3d q)
+        out Vec3d p, out Vec3d q) =>
+        Intersect(a0, a1, a2, b0, b1, b2, out p, out q, out _);
+
+    /// <summary>То же и общая площадь копланарного сонаправленного перекрытия, мм² (0 - пересечение не копланарное).</summary>
+    public static bool Intersect(
+        in Vec3d a0, in Vec3d a1, in Vec3d a2,
+        in Vec3d b0, in Vec3d b1, in Vec3d b2,
+        out Vec3d p, out Vec3d q, out double coplanarArea)
     {
         p = default;
         q = default;
+        coplanarArea = 0;
 
         var nb = Vec3d.Cross(b1 - b0, b2 - b0);
         var nbLength = nb.LengthSquared;
@@ -49,7 +57,7 @@ internal static class TriangleIntersection
         var da1 = Snap(Vec3d.Dot(nb, a1 - b0));
         var da2 = Snap(Vec3d.Dot(nb, a2 - b0));
         if (StrictlyOneSide(da0, da1, da2)) return false;
-        if (da0 == 0 && da1 == 0 && da2 == 0) return Coplanar(a0, a1, a2, b0, b1, b2, nb, out p, out q);
+        if (da0 == 0 && da1 == 0 && da2 == 0) return Coplanar(a0, a1, a2, b0, b1, b2, nb, out p, out q, out coplanarArea);
 
         var na = Vec3d.Cross(a1 - a0, a2 - a0);
         var naLength = na.LengthSquared;
@@ -89,10 +97,11 @@ internal static class TriangleIntersection
     private static bool Coplanar(
         in Vec3d a0, in Vec3d a1, in Vec3d a2,
         in Vec3d b0, in Vec3d b1, in Vec3d b2,
-        in Vec3d nb, out Vec3d p, out Vec3d q)
+        in Vec3d nb, out Vec3d p, out Vec3d q, out double area)
     {
         p = default;
         q = default;
+        area = 0;
         var na = Vec3d.Cross(a1 - a0, a2 - a0);
         if (na.LengthSquared <= DegenerateAreaSquared || Vec3d.Dot(na, nb) <= 0) return false;
 
@@ -111,6 +120,7 @@ internal static class TriangleIntersection
         var doubleArea = default(Vec3d);
         for (var i = 1; i + 1 < count; i++) doubleArea += Vec3d.Cross(next[i] - next[0], next[i + 1] - next[0]);
         if (Vec3d.Dot(doubleArea, nb) <= 2 * CoplanarAreaEpsilon) return false;
+        area = Vec3d.Dot(doubleArea, nb) / 2;
 
         p = next[0];
         q = next[0];

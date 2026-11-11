@@ -21,7 +21,7 @@ public sealed class ClashEngine(EngineOptions options)
     ///     Версия алгоритма поиска. Повышать при любой правке точной фазы, фильтра пар, вложения, глубины или допусков.
     ///     Основа прошлого прогона с другой версией не переиспользуется — это проверяет вызывающий.
     /// </summary>
-    public const int AlgorithmVersion = 1;
+    public const int AlgorithmVersion = 2;
 
     private const int PairsPerBatch = 256;
     private const long MemorySampleInterval = 10_000;
@@ -31,6 +31,15 @@ public sealed class ClashEngine(EngineOptions options)
 
     /// <summary>Наибольшее число вершин элемента, проверяемых на вложенность в другой элемент пары.</summary>
     private const int MaxInsideSamples = 256;
+
+    /// <summary>Наибольшее число точек местной глубины на пару.</summary>
+    private const int MaxLocalSamples = 192;
+
+    /// <summary>Доля поверхности меньшего элемента под совпадающими гранями, с которой пара - дубликат.</summary>
+    private const double DuplicateShare = 0.25;
+
+    /// <summary>Доли отрезка пересечения, в которых берутся точки местной глубины: концы часто лежат на рёбрах.</summary>
+    private static readonly double[] SegmentShares = [0.02, 0.25, 0.5, 0.75, 0.98];
 
     /// <summary>
     ///     Нижняя граница допуска, мм: при допуске 0 касание с погрешностью float не становится коллизией.
@@ -212,16 +221,19 @@ public sealed class ClashEngine(EngineOptions options)
     private sealed class NarrowPhase
     {
         private readonly Lazy<MeshBvh>[] _bvh;
+        private readonly Lazy<double>[] _area;
 
         public NarrowPhase(ClashScene scene)
         {
             Scene = scene;
             var elements = scene.Elements;
             _bvh = new Lazy<MeshBvh>[elements.Count];
+            _area = new Lazy<double>[elements.Count];
             for (var i = 0; i < _bvh.Length; i++)
             {
                 var element = elements[i];
                 _bvh[i] = new Lazy<MeshBvh>(() => MeshBvh.Build(element), LazyThreadSafetyMode.ExecutionAndPublication);
+                _area[i] = new Lazy<double>(() => Area(element), LazyThreadSafetyMode.ExecutionAndPublication);
             }
 
             Containment = new Containment(elements, BvhOf);
@@ -232,6 +244,24 @@ public sealed class ClashEngine(EngineOptions options)
         public Containment Containment { get; }
 
         public MeshBvh BvhOf(int element) => _bvh[element].Value;
+
+        /// <summary>Площадь поверхности элемента, мм².</summary>
+        public double AreaOf(int element) => _area[element].Value;
+
+        private static double Area(SceneElement element)
+        {
+            var area = 0.0;
+            var indices = element.Indices;
+            for (var t = 0; t + 2 < indices.Length; t += 3)
+            {
+                var a = Vec3d.At(element.Positions, indices[t]);
+                var b = Vec3d.At(element.Positions, indices[t + 1]);
+                var c = Vec3d.At(element.Positions, indices[t + 2]);
+                area += Math.Sqrt(Vec3d.Cross(b - a, c - a).LengthSquared) / 2;
+            }
+
+            return area;
+        }
     }
 
     /// <summary>Проверка пар одним потоком со своими буферами.</summary>
@@ -242,6 +272,13 @@ public sealed class ClashEngine(EngineOptions options)
         private readonly PenetrationDepth.Scratch _scratch = new();
         private readonly List<Vector3> _shared = [];
         private readonly List<int> _inCommon = [];
+        private readonly List<int> _sharedSource = [];
+        private readonly List<LocalDepth.Sample> _surface = [];
+        private readonly List<Vec3d> _normals = [];
+        private double _coplanarArea;
+        private readonly List<LocalDepth.Sample> _samples = [];
+        private readonly HashSet<(long, long, long)> _cells = [];
+        private readonly LocalDepth.Rays _rays = new();
 
         public List<ClashHit> Hits { get; } = [];
 
@@ -256,6 +293,10 @@ public sealed class ClashEngine(EngineOptions options)
             var common = Common(a.Bounds, b.Bounds);
             var (small, large) = a.Indices.Length <= b.Indices.Length ? (pair.A, pair.B) : (pair.B, pair.A);
             _shared.Clear();
+            _sharedSource.Clear();
+            _surface.Clear();
+            _normals.Clear();
+            _coplanarArea = 0;
             if (Intersections(narrow.BvhOf(small), narrow.BvhOf(large), common, ref zone))
             {
                 CollectInside(pair.A, pair.B, common);
@@ -271,7 +312,7 @@ public sealed class ClashEngine(EngineOptions options)
                 else if (narrow.Containment.IsInside(pair.B, pair.A, _candidates)) inner = pair.B;
                 else return false;
                 zone = scene.Elements[inner].Bounds;
-                SampleVertices(scene.Elements[inner].Positions);
+                SampleVertices(inner);
             }
 
             var tolerance = Math.Max(pair.ToleranceMm, MinToleranceMm);
@@ -279,6 +320,21 @@ public sealed class ClashEngine(EngineOptions options)
             var depth = (float)PenetrationDepth.Estimate(
                 a, narrow.BvhOf(pair.A), b, narrow.BvhOf(pair.B), zone.Expand(tolerance + ZoneMargin), _shared, _scratch);
             if (!(depth > tolerance)) return false;
+
+            // Оценка по зоне видит тела целиком и не знает о вырезах: у перегородки, заходящей в край отверстия пола
+            // на 1 мм, глубина выходит толщиной пола. Местная глубина по точкам пересечения это различает. Она считается
+            // до двух наибольших допусков клеток пары: нахлёст до этой величины записывается своей толщиной; дошла до предела -
+            // тело окружено другим или вошло глубоко, остаётся оценка по зоне.
+            var bvhA = narrow.BvhOf(pair.A);
+            var bvhB = narrow.BvhOf(pair.B);
+            if (bvhA.IsClosed && bvhB.IsClosed && !Duplicates(pair))
+            {
+                var largest = LargestTolerance(pair);
+                var limit = 2 * largest + ZoneMargin;
+                var local = LocalDepth.Estimate(bvhA, bvhB, Samples(limit), _normals, _surface.Count > 0, limit, _rays);
+                if (local < limit - ZoneMargin / 2) depth = Math.Min(depth, (float)local);
+                if (!(depth > tolerance)) return false;
+            }
 
             var (first, second) = a.Ref.CompareTo(b.Ref) <= 0 ? (a.Ref, b.Ref) : (b.Ref, a.Ref);
             hit = new ClashHit(
@@ -290,6 +346,54 @@ public sealed class ClashEngine(EngineOptions options)
                 depth,
                 ChecksOf(scene.Groups, pair, depth));
             return true;
+        }
+
+        // Дубликат (копия элемента на том же месте или почти): сонаправленные совпадающие грани покрывают заметную долю
+        // поверхности меньшего элемента. У дубликата из тонких листов местная глубина - толщина листа, а коллизия -
+        // весь элемент; узкий нахлёст у выреза даёт ничтожную долю.
+        private bool Duplicates(in CandidatePair pair) =>
+            _coplanarArea >= DuplicateShare * Math.Min(narrow.AreaOf(pair.A), narrow.AreaOf(pair.B));
+
+        private static float LargestTolerance(in CandidatePair pair)
+        {
+            var largest = Math.Max(pair.ToleranceMm, MinToleranceMm);
+            foreach (var cell in pair.Cells) largest = Math.Max(largest, cell.ToleranceMm);
+            return largest;
+        }
+
+        // Точки местной глубины: точки пересечения поверхностей, сдвинутые внутрь обоих тел (против суммы наружных
+        // нормалей; у встречных граней - касание, такие точки не берутся), и вершины одного тела внутри другого, сдвинутые
+        // к середине своего тела. По одной на ячейку со стороной в 1/4 предела, не больше MaxLocalSamples.
+        private List<LocalDepth.Sample> Samples(float limit)
+        {
+            var cell = limit / 4;
+            _cells.Clear();
+            _samples.Clear();
+            foreach (var sample in _surface)
+            {
+                var inward = (sample.NormalA + sample.NormalB) * -1;
+                if (inward.LengthSquared >= 0.01) Add(sample with { Point = sample.Point + inward.Normalized() * LocalDepth.Nudge });
+            }
+
+            for (var i = 0; i < _shared.Count; i++)
+            {
+                var point = new Vec3d(_shared[i].X, _shared[i].Y, _shared[i].Z);
+                var center = narrow.Scene.Elements[_sharedSource[i]].Bounds.Center;
+                var inward = new Vec3d(center.X, center.Y, center.Z) - point;
+                if (inward.LengthSquared > 0) point += inward.Normalized() * LocalDepth.Nudge;
+                Add(new LocalDepth.Sample(point, default, default));
+            }
+
+            if (_samples.Count <= MaxLocalSamples) return _samples;
+            var thinned = new List<LocalDepth.Sample>(MaxLocalSamples);
+            for (var i = 0; i < MaxLocalSamples; i++) thinned.Add(_samples[(int)((long)i * _samples.Count / MaxLocalSamples)]);
+            return thinned;
+
+            void Add(in LocalDepth.Sample sample)
+            {
+                var p = sample.Point;
+                if (_cells.Add(((long)Math.Floor(p.X / cell), (long)Math.Floor(p.Y / cell), (long)Math.Floor(p.Z / cell)))) _samples.Add(sample);
+            }
         }
 
         // Вершины элемента source в общем габарите, лежащие внутри замкнутого outer; не больше MaxInsideSamples проверок.
@@ -309,25 +413,39 @@ public sealed class ClashEngine(EngineOptions options)
             for (var i = 0; i < take; i++)
             {
                 var v = inCommon[(int)((long)i * inCommon.Count / take)];
-                if (narrow.Containment.ContainsPoint(outer, Vec3d.At(positions, v), _candidates))
-                    _shared.Add(new Vector3(positions[v * 3], positions[v * 3 + 1], positions[v * 3 + 2]));
+                if (!narrow.Containment.ContainsPoint(outer, Vec3d.At(positions, v), _candidates)) continue;
+                _shared.Add(new Vector3(positions[v * 3], positions[v * 3 + 1], positions[v * 3 + 2]));
+                _sharedSource.Add(source);
             }
         }
 
         // Равномерная выборка вершин элемента, не больше MaxInsideSamples, в общие точки.
-        private void SampleVertices(float[] positions)
+        private void SampleVertices(int element)
         {
+            var positions = narrow.Scene.Elements[element].Positions;
             var count = positions.Length / 3;
             var take = Math.Min(MaxInsideSamples, count);
             for (var i = 0; i < take; i++)
             {
                 var v = (int)((long)i * count / take);
                 _shared.Add(new Vector3(positions[v * 3], positions[v * 3 + 1], positions[v * 3 + 2]));
+                _sharedSource.Add(element);
             }
         }
 
+        // Нормали пересекающихся граней пары без повторов (с точностью до 2.5°), не больше MaxPairNormals: направления
+        // местной глубины для всех точек - у точки на ребре своей нормали отделяющей грани нет.
+        private void AddNormal(in Vec3d normal)
+        {
+            if (_normals.Count >= LocalDepth.MaxPairNormals) return;
+            foreach (var known in _normals)
+                if (Math.Abs(Vec3d.Dot(known, normal)) > 0.999) return;
+            _normals.Add(normal);
+        }
+
         // Все отрезки пересечения треугольников пары; zone - их общий габарит. Треугольники берутся из BVH,
-        // то есть с внешней ориентацией для замкнутых сеток.
+        // то есть с внешней ориентацией для замкнутых сеток. Точки отрезков (SegmentShares) с направлением внутрь обоих
+        // тел (против суммы наружных нормалей) идут в точки местной глубины, нормали - в направления.
         private bool Intersections(MeshBvh small, MeshBvh large, in Aabb common, ref Aabb zone)
         {
             var eps = (float)TriangleIntersection.PlaneEpsilon;
@@ -342,8 +460,14 @@ public sealed class ClashEngine(EngineOptions options)
                 foreach (var u in _candidates)
                 {
                     large.Vertices(u, out var b0, out var b1, out var b2);
-                    if (!TriangleIntersection.Intersect(a0, a1, a2, b0, b1, b2, out var p, out var q)) continue;
+                    if (!TriangleIntersection.Intersect(a0, a1, a2, b0, b1, b2, out var p, out var q, out var coplanar)) continue;
+                    _coplanarArea += coplanar;
                     zone = zone.Union(BoxOf(p, q, q));
+                    var normalSmall = Vec3d.Cross(a1 - a0, a2 - a0).Normalized();
+                    var normalLarge = Vec3d.Cross(b1 - b0, b2 - b0).Normalized();
+                    foreach (var share in SegmentShares) _surface.Add(new LocalDepth.Sample(p + (q - p) * share, normalSmall, normalLarge));
+                    AddNormal(normalSmall);
+                    AddNormal(normalLarge);
                     found = true;
                 }
             }

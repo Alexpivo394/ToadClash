@@ -18,11 +18,13 @@ internal sealed class MeshBvh
     private readonly int[] _indices;
     private readonly Node[] _nodes;
     private readonly int[] _triangles;
+    private readonly int[]? _shells;
     private int _nodeCount;
 
-    private MeshBvh(float[] positions, int[] indices, int[] triangles, bool closed)
+    private MeshBvh(float[] positions, int[] indices, int[] triangles, bool closed, int[]? shells)
     {
         IsClosed = closed;
+        _shells = shells;
         _positions = positions;
         _indices = indices;
         _triangles = triangles;
@@ -36,13 +38,16 @@ internal sealed class MeshBvh
     /// <summary>Замкнута ли сетка элемента.</summary>
     public bool IsClosed { get; }
 
+    /// <summary>Номер оболочки треугольника у замкнутой сетки (<see cref="MeshTopology"/>), у незамкнутой - 0.</summary>
+    public int ShellOf(int triangle) => _shells?[triangle] ?? 0;
+
     /// <summary>Строит дерево по сетке элемента сцены.</summary>
     public static MeshBvh Build(SceneElement element) => Build(element.Positions, element.Indices);
 
     /// <summary>Строит дерево по сетке: позиции — тройки xyz, индексы — тройки треугольников.</summary>
     public static MeshBvh Build(float[] positions, int[] elementIndices)
     {
-        var indices = MeshTopology.Orient(positions, elementIndices, out var closed);
+        var indices = MeshTopology.Orient(positions, elementIndices, out var closed, out var shells);
         var triangleCount = indices.Length / 3;
         var triangles = new List<int>(triangleCount);
         for (var t = 0; t < triangleCount; t++)
@@ -50,7 +55,7 @@ internal sealed class MeshBvh
             if (!IsDegenerate(positions, indices, t)) triangles.Add(t);
         }
 
-        var bvh = new MeshBvh(positions, indices, [.. triangles], closed);
+        var bvh = new MeshBvh(positions, indices, [.. triangles], closed, shells);
         if (bvh._triangles.Length == 0) return bvh;
 
         var centers = new Vector3[triangleCount];

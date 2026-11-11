@@ -91,6 +91,24 @@ public sealed class MeshTopologyTests
     }
 
     [Test]
+    public void Shells_NumberedPerBody_OpenMeshHasNone()
+    {
+        var other = TestScenes.Box(new Vector3(10, 10, 0), new Vector3(20, 20, 10));
+        float[] positions = [.. Cube.Positions, .. other.Positions];
+        int[] indices = [.. Cube.Indices, .. other.Indices.Select(i => i + 8)];
+
+        MeshTopology.Orient(Cube.Positions, Cube.Indices, out _, out var one);
+        MeshTopology.Orient(positions, indices, out _, out var two);
+        MeshTopology.Orient(Cube.Positions, Cube.Indices[..^6], out _, out var open);
+
+        one.ShouldNotBeNull().Distinct().ShouldBe([0]);
+        two.ShouldNotBeNull()[..12].Distinct().ShouldHaveSingleItem();
+        two[12..].Distinct().ShouldHaveSingleItem();
+        two[0].ShouldNotBe(two[12]);
+        open.ShouldBeNull();
+    }
+
+    [Test]
     public void OpenMesh_KeepsWinding()
     {
         var open = Inverted(Cube.Indices[..^6]);
