@@ -192,18 +192,20 @@ public static class GeometryExtractor
     {
         var builder = new MeshBuilder(origin);
         if (element.get_Geometry(options) is { } geometry)
-            AppendGeometry(builder, geometry, Transform.Identity, coordinates, levelOfDetail);
+            AppendGeometry(element.Document, builder, geometry, Transform.Identity, coordinates, levelOfDetail);
         return builder.Build();
     }
 
-    private static void AppendGeometry(MeshBuilder builder, GeometryElement geometry, Transform local, CoordinateTransform coordinates, double levelOfDetail)
+    private static void AppendGeometry(Document doc, MeshBuilder builder, GeometryElement geometry, Transform local, CoordinateTransform coordinates,
+        double levelOfDetail)
     {
         foreach (var geometryObject in geometry)
         {
+            if (IsLightSource(doc, geometryObject)) continue;
             switch (geometryObject)
             {
                 case GeometryInstance instance:
-                    AppendGeometry(builder, instance.GetSymbolGeometry(), local.Multiply(instance.Transform), coordinates, levelOfDetail);
+                    AppendGeometry(doc, builder, instance.GetSymbolGeometry(), local.Multiply(instance.Transform), coordinates, levelOfDetail);
                     break;
                 case Solid solid when solid.Faces.Size > 0:
                     AppendSolid(builder, solid, local, coordinates, levelOfDetail);
@@ -315,6 +317,15 @@ public static class GeometryExtractor
         element.LevelId.ToElement<Level>(element.Document) ??
         element.get_Parameter(BuiltInParameter.INSTANCE_REFERENCE_LEVEL_PARAM)?.AsElement<Level>() ??
         element.get_Parameter(BuiltInParameter.SCHEDULE_LEVEL_PARAM)?.AsElement<Level>();
+
+    /// <summary>
+    ///     Источник света светильника (подкатегория «Источник света») - не тело изделия: шар или конус вокруг лампы
+    ///     давал ложные коллизии с перекрытиями и трубами.
+    /// </summary>
+    private static bool IsLightSource(Document doc, GeometryObject geometryObject) =>
+        geometryObject.GraphicsStyleId != ElementId.InvalidElementId &&
+        doc.GetElement(geometryObject.GraphicsStyleId) is GraphicsStyle { GraphicsStyleCategory: { } category } &&
+        IdValue(category.Id) == (long)BuiltInCategory.OST_LightingFixtureSource;
 
     private static long IdValue(ElementId id) =>
 #if REVIT2024_OR_GREATER
