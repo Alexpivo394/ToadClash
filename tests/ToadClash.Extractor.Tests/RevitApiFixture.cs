@@ -74,12 +74,12 @@ namespace Autodesk.Revit.DB
     {
         public static ElementId InvalidElementId { get; } = new(-1);
     }
-    public enum BuiltInCategory { OST_GenericModel = -2000151 }
+    public enum BuiltInCategory { OST_GenericModel = -2000151, OST_LightingFixtureSource = -2001121 }
     public enum BuiltInParameter { INSTANCE_REFERENCE_LEVEL_PARAM, SCHEDULE_LEVEL_PARAM }
     public enum CategoryType { Model }
     public sealed class Category
     {
-        public ElementId Id { get; } = new((int)BuiltInCategory.OST_GenericModel);
+        public ElementId Id { get; init; } = new((int)BuiltInCategory.OST_GenericModel);
         public CategoryType CategoryType => CategoryType.Model;
         public List<Category> SubCategories { get; } = [];
     }
@@ -127,6 +127,7 @@ namespace Autodesk.Revit.DB
         public Application Application { get; } = new();
         public bool IsWorkshared => false;
         public WorksetTable GetWorksetTable() => new();
+        public Element? GetElement(ElementId id) => Elements.FirstOrDefault(element => element.Id == id);
     }
     public sealed class Settings { public List<Category> Categories { get; } = [new()]; }
     public sealed class Application { public string VersionNumber => "2022"; }
@@ -149,7 +150,8 @@ namespace Autodesk.Revit.DB
         public XYZ OfPoint(XYZ point) => point;
     }
     public sealed class BoundingBox { public Transform Transform => Transform.Identity; public XYZ Min { get; init; } = new(); public XYZ Max { get; init; } = new(); }
-    public class GeometryObject;
+    public class GeometryObject { public ElementId GraphicsStyleId { get; init; } = ElementId.InvalidElementId; }
+    public sealed class GraphicsStyle : Element { public Category? GraphicsStyleCategory { get; init; } }
     public sealed class GeometryElement : List<GeometryObject>;
     public sealed class GeometryInstance : GeometryObject
     {
