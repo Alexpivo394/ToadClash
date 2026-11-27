@@ -34,8 +34,11 @@ namespace Autodesk.Revit.DB
         public int AsInteger() => (int)Value;
         public string? AsValueString() => "отображаемое значение";
         public string? AsString() => null;
-        public Element? AsElement() => null;
-        public T? AsElement<T>() where T : Element => null;
+        // Как Nice3point.Revit.Extensions 5.6+: AsElement без элемента бросает, AsElementOrDefault возвращает null.
+        public Element AsElement() => throw new InvalidOperationException($"The parameter '{Definition.Name}' references no element.");
+        public T AsElement<T>() where T : Element => throw new InvalidOperationException($"The parameter '{Definition.Name}' references no element.");
+        public Element? AsElementOrDefault() => null;
+        public T? AsElementOrDefault<T>() where T : Element => null;
     }
     public sealed class Units : IDisposable
     {
@@ -189,8 +192,12 @@ namespace ToadClash.Extractor.Tests
 {
     internal static class ApiExtensions
     {
-        public static Element? ToElement(this ElementId id, Document doc) => doc.Elements.Find(element => element.Id == id);
-        public static T? ToElement<T>(this ElementId id, Document doc) where T : Element => id.ToElement(doc) as T;
+        // Как Nice3point.Revit.Extensions 5.6+: ToElement без элемента бросает, ToElementOrDefault возвращает null.
+        public static Element ToElement(this ElementId id, Document doc) =>
+            id.ToElementOrDefault(doc) ?? throw new InvalidOperationException($"The document contains no element with the id {id.IntegerValue}.");
+        public static T ToElement<T>(this ElementId id, Document doc) where T : Element => (T)id.ToElement(doc);
+        public static Element? ToElementOrDefault(this ElementId id, Document doc) => doc.Elements.Find(element => element.Id == id);
+        public static T? ToElementOrDefault<T>(this ElementId id, Document doc) where T : Element => id.ToElementOrDefault(doc) as T;
         public static ElementId ToElementId(this BuiltInCategory category) => new((int)category);
         public static double ToMillimeters(this double value) => value * 304.8;
         public static IEnumerable<Element> CollectElements(this Document doc) => doc.Elements;

@@ -175,7 +175,7 @@ public static class GeometryExtractor
 
             foreach (var id in instance.GetSubComponentIds())
             {
-                if (visibleIds.Contains(id) && id.ToElement(doc) is Element nested && !nested.IsHidden(view))
+                if (visibleIds.Contains(id) && id.ToElementOrDefault(doc) is Element nested && !nested.IsHidden(view))
                     Add(nested);
             }
         }
@@ -284,7 +284,7 @@ public static class GeometryExtractor
     private static ElementInfo ReadInfo(Element element, Dictionary<BuiltInCategory, string> categoryNames)
     {
         var doc = element.Document;
-        var type = element.GetTypeId().ToElement<ElementType>(doc);
+        var type = element.GetTypeId().ToElementOrDefault<ElementType>(doc);
         var workset = doc.IsWorkshared ? doc.GetWorksetTable().GetWorkset(element.WorksetId)?.Name : null;
         return new ElementInfo(
             element.UniqueId,
@@ -305,7 +305,7 @@ public static class GeometryExtractor
     private static string? RootComponentUniqueId(Element element)
     {
         if (element is InsulationLiningBase insulation)
-            return insulation.HostElementId.ToElement(element.Document) is { } host ? RootComponentUniqueId(host) ?? host.UniqueId : null;
+            return insulation.HostElementId.ToElementOrDefault(element.Document) is { } host ? RootComponentUniqueId(host) ?? host.UniqueId : null;
         if (element is not FamilyInstance { SuperComponent: { } super }) return null;
         var root = super;
         // Глубина вложенности семейств Revit невелика; ограничение защищает от циклической ссылки.
@@ -314,9 +314,9 @@ public static class GeometryExtractor
     }
 
     private static Level? LevelOf(Element element) =>
-        element.LevelId.ToElement<Level>(element.Document) ??
-        element.get_Parameter(BuiltInParameter.INSTANCE_REFERENCE_LEVEL_PARAM)?.AsElement<Level>() ??
-        element.get_Parameter(BuiltInParameter.SCHEDULE_LEVEL_PARAM)?.AsElement<Level>();
+        element.LevelId.ToElementOrDefault<Level>(element.Document) ??
+        element.get_Parameter(BuiltInParameter.INSTANCE_REFERENCE_LEVEL_PARAM)?.AsElementOrDefault<Level>() ??
+        element.get_Parameter(BuiltInParameter.SCHEDULE_LEVEL_PARAM)?.AsElementOrDefault<Level>();
 
     /// <summary>
     ///     Источник света светильника (подкатегория «Источник света») - не тело изделия: шар или конус вокруг лампы

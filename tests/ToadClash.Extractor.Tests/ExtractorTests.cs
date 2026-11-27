@@ -117,6 +117,40 @@ public sealed class ExtractorTests
         result.Skipped.Select(s => (s.UniqueId, s.Stage)).ShouldBe([("1", "геометрия")]);
     }
 
+    [Test]
+    public void ElementIdParameterWithoutElement_IsReadAsDisplayedValue()
+    {
+        // Ссылка «Стадия сноса», «Категория» и т. п. на пустой элемент — обычное дело, а не сбой элемента.
+        var doc = new Document();
+        var element = new Element { Document = doc };
+        element.Parameters.Add(new Parameter { Element = element, Definition = new Definition { Name = "Стадия сноса" }, StorageType = StorageType.ElementId });
+
+        new ParameterReader().Read(element).Single().Text.ShouldBe("отображаемое значение");
+    }
+
+    [Test]
+    public void MissingType_IsReadWithoutTypeParameters()
+    {
+        var doc = new Document();
+        var element = new Element { Document = doc, TypeId = new(42) };
+
+        new ParameterReader().Read(element).ShouldBeEmpty();
+    }
+
+    [Test]
+    public void ElementWithoutLevelTypeOrHost_IsDescribedWithEmptyFields()
+    {
+        var doc = new Document();
+        var insulation = new InsulationLiningBase { Id = new(1), Document = doc, HostElementId = new(42) };
+        var names = new Dictionary<BuiltInCategory, string> { [BuiltInCategory.OST_GenericModel] = "Обобщённые модели" };
+
+        var info = (Alexpivo394.Revit.Clash.Geometry.ElementInfo)typeof(GeometryExtractor)
+            .GetMethod("ReadInfo", BindingFlags.NonPublic | BindingFlags.Static)!
+            .Invoke(null, [insulation, names])!;
+
+        (info.Family, info.Type, info.Level, info.RootComponentUniqueId).ShouldBe((null, null, null, null));
+    }
+
     private static (double, double, double) Origin(XYZ firstElementAt)
     {
         var doc = new Document();

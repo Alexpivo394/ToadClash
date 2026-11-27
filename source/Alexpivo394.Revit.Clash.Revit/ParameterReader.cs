@@ -26,7 +26,7 @@ internal sealed class ParameterReader
 
         if (!_typeValues.TryGetValue(typeId, out var typeValues))
         {
-            typeValues = typeId.ToElement(element.Document) is { } type ? ReadOwn(type) : [];
+            typeValues = typeId.ToElementOrDefault(element.Document) is { } type ? ReadOwn(type) : [];
             _typeValues.Add(typeId, typeValues);
         }
 
@@ -53,7 +53,7 @@ internal sealed class ParameterReader
 
     private static string? Text(Parameter parameter)
     {
-        if (parameter.StorageType == StorageType.ElementId && parameter.AsElement() is { } referenced) return referenced.Name;
+        if (parameter.StorageType == StorageType.ElementId && parameter.AsElementOrDefault() is { } referenced) return referenced.Name;
         return parameter.AsValueString() ?? parameter.AsString();
     }
 
